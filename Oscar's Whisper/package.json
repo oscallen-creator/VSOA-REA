@@ -1,0 +1,26 @@
+{
+  "name": "oscars-whisper",
+  "productName": "Oscar's Whisper",
+  "version": "0.1.0",
+  "description": "Minimal push-to-talk dictation: always-on bar, global hotkey, voice capture, cleanup, paste.",
+  "private": true,
+  "type": "module",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "uiohook-napi": "1.5.5"
+  },
+  "devDependencies": {
+    "electron": "44.9.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "allowScripts": {
+    "electron@44.9.0": true,
+    "uiohook-napi@1.5.5": true
+  }
+}

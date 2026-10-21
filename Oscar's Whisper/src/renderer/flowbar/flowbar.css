@@ -1,0 +1,109 @@
+:root {
+  --pill-bg: rgba(18, 18, 20, 0.92);
+  --pill-border: rgba(255, 255, 255, 0.14);
+  --idle-dot: rgba(255, 255, 255, 0.55);
+  --live: #ff4d5e;
+  --busy: #8fa2ff;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 14px;
+  min-width: 44px;
+  margin-bottom: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--pill-border);
+  border-radius: 999px;
+  background: var(--pill-bg);
+  cursor: pointer;
+  transition:
+    height 160ms ease,
+    min-width 160ms ease;
+}
+
+.pill:hover,
+.pill[data-status="initializing"],
+.pill[data-status="listening"],
+.pill[data-status="stopping"],
+.pill[data-status="processing"] {
+  height: 32px;
+  min-width: 112px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--idle-dot);
+}
+
+.pill[data-status="listening"] .dot {
+  background: var(--live);
+}
+
+.pill[data-locked="true"] .dot {
+  box-shadow: 0 0 0 3px rgba(255, 77, 94, 0.3);
+}
+
+.meter {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+}
+
+.meter i {
+  width: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: #fff;
+  transition: height 60ms linear;
+}
+
+.pill[data-status="listening"] .meter,
+.pill[data-status="initializing"] .meter {
+  display: flex;
+}
+
+.spinner {
+  display: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(143, 162, 255, 0.3);
+  border-top-color: var(--busy);
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+.pill[data-status="stopping"] .spinner,
+.pill[data-status="processing"] .spinner {
+  display: block;
+}
+
+.pill[data-notice="error"] {
+  border-color: var(--live);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
