@@ -15,14 +15,17 @@ import uiohookModule from "uiohook-napi";
 import { Channel } from "../shared/channels.js";
 import { LEVEL_UPDATE_MS, LevelMeter } from "./audio/levelMeter.js";
 import { RecorderBridge } from "./audio/recorderBridge.js";
-import { loadConfig, describeConfig } from "./config.js";
+import { loadConfig } from "./config.js";
 import { debug } from "./debug.js";
 import { STALE_KEY_SWEEP_MS } from "./constants.js";
 import { DictationController, Source } from "./dictation/controller.js";
 import { createFlowBarWindow } from "./flowbar/flowBarWindow.js";
 import { Action, defaultBindings } from "./keyboard/keys.js";
 import { ShortcutMatcher } from "./keyboard/shortcutMatcher.js";
+import { pasteText } from "./pipeline/paste.js";
 import { createPipeline } from "./pipeline/pipeline.js";
+import { SPEECH_MODEL } from "./transcription/speechModel.js";
+import { Transcriber } from "./transcription/transcriber.js";
 
 const { uIOhook } = uiohookModule;
 const appRoot = path.resolve(
@@ -31,6 +34,13 @@ const appRoot = path.resolve(
   "..",
 );
 const MODIFIERS = new Set(["ctrl", "win", "alt", "shift"]);
+/** The installed app carries the model in its resources folder; development uses models/. */
+const speechModelDir = () =>
+  path.join(
+    app.isPackaged ? process.resourcesPath : appRoot,
+    "models",
+    SPEECH_MODEL.id,
+  );
 
 let bar = null;
 let recorderWindow = null;
@@ -87,6 +97,23 @@ const startKeyboardHook = (matcher) => {
     clearInterval(sweep);
     uIOhook.stop();
   });
+};
+
+/** Starts loading the speech model in the background; failures are reported, then retried on use. */
+const createTranscriber = () => {
+  const transcriber = new Transcriber({ modelDir: speechModelDir() });
+  const started = Date.now();
+  transcriber.load().then(
+    () =>
+      console.log(
+        `[oscars-whisper] speech model ready in ${Date.now() - started} ms`,
+      ),
+    (error) => {
+      console.error("[oscars-whisper] speech model failed to load:", error);
+      sendToBar(Channel.BarNotice, `error:${error.message}`);
+    },
+  );
+  return transcriber;
 };
 
 /** Bar level meter: dB-scaled chunk levels, averaged and sent every 150 ms. */
@@ -175,7 +202,7 @@ const main = async () => {
   }
   allowMicrophoneOnly();
   const config = await loadConfig({ userDataDir: app.getPath("userData") });
-  console.log("[oscars-whisper] config", describeConfig(config));
+  console.log("[oscars-whisper] config", config);
 
   recorderWindow = createRecorderWindow();
   bar = createFlowBarWindow({ appRoot });
@@ -189,11 +216,17 @@ const main = async () => {
   const keyboard = createKeyboard(config, () => dictation);
   const pipeline = createPipeline({
     config,
+    transcriber: createTranscriber(),
+    paste: pasteText,
     isModifierHeld: () => keyboard.heldKeys.some((key) => MODIFIERS.has(key)),
   });
   dictation = new DictationController({
     recorder,
-    process: (pcm) => pipeline.run(pcm),
+    process: async (pcm) => {
+      const result = await pipeline.run(pcm);
+      if (!result.pasted)
+        console.log("[oscars-whisper] nothing pasted:", result.reason);
+    },
     onChange: (state) => {
       if (state.status !== "listening") levels.reset();
       sendToBar(Channel.BarState, state);

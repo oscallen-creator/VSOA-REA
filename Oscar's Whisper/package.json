@@ -8,11 +8,17 @@
   "type": "module",
   "main": "src/main/index.js",
   "scripts": {
+    "fetch-model": "node scripts/fetch-model.mjs",
+    "prestart": "npm run fetch-model",
     "start": "electron .",
     "test": "node --test \"test/*.test.js\"",
+    "predist": "npm run fetch-model",
     "dist": "electron-builder",
+    "predist:win": "npm run fetch-model",
     "dist:win": "electron-builder --win --x64",
+    "predist:mac": "npm run fetch-model",
     "dist:mac": "electron-builder --mac",
+    "predist:linux": "npm run fetch-model",
     "dist:linux": "electron-builder --linux --x64"
   },
   "build": {
@@ -27,10 +33,28 @@
       "src/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "models/parakeet-tdt-0.6b-v2-int8",
+        "to": "models/parakeet-tdt-0.6b-v2-int8",
+        "filter": [
+          "*.onnx",
+          "tokens.txt"
+        ]
+      },
+      {
+        "from": "THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
+      }
+    ],
     "npmRebuild": false,
     "publish": null,
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "files": [
+        "!node_modules/sherpa-onnx-{darwin,linux}-*/**",
+        "!node_modules/sherpa-onnx-win-ia32/**"
+      ]
     },
     "nsis": {
       "artifactName": "OscarsWhisper-Setup-${version}.${ext}",
@@ -44,19 +68,28 @@
       "extendInfo": {
         "LSUIElement": true,
         "NSMicrophoneUsageDescription": "Oscar's Whisper records your voice while you dictate."
-      }
+      },
+      "files": [
+        "!node_modules/sherpa-onnx-{win,linux}-*/**"
+      ]
     },
     "linux": {
       "target": "AppImage",
-      "category": "Utility"
+      "category": "Utility",
+      "files": [
+        "!node_modules/sherpa-onnx-{win,darwin}-*/**"
+      ]
     }
   },
   "dependencies": {
+    "sherpa-onnx-node": "1.13.8",
     "uiohook-napi": "1.5.5"
   },
   "devDependencies": {
     "electron": "44.9.0",
-    "electron-builder": "26.15.3"
+    "electron-builder": "26.15.3",
+    "tar": "7.5.22",
+    "unbzip2-stream": "1.4.3"
   },
   "engines": {
     "node": ">=22"
