@@ -161,30 +161,19 @@ const freshList = async (app, page, pick) => {
   return dismissAlert(page);
 };
 
-const main = async () => {
-  const inputs = await prepareInputs();
-  const expected = [
-    `Trip/${stem(inputs.names[0])}`,
-    `Trip/${stem(inputs.names[1])}`,
-    stem(inputs.names[2]),
-  ].sort();
-  let session = await launch();
-  const { app, page } = session;
-  outputRoot = (await state(page)).settings.outputPath;
-  assert.ok(
-    outputRoot.startsWith(home),
-    `output inside the test home: ${outputRoot}`,
-  );
-
-  await scenario("window opens on the empty state", async () => {
-    assert.equal(await page.title(), "Oscar's Remove BG");
-    assert.ok(await page.isVisible("#empty"));
-    await shoot(page, "01-empty");
-  });
-
-  await scenario(
+// Each runs in order on one app session and leaves it ready for the next.
+const SCENARIOS = [
+  [
+    "window opens on the empty state",
+    async ({ page }) => {
+      assert.equal(await page.title(), "Oscar's Remove BG");
+      assert.ok(await page.isVisible("#empty"));
+      await shoot(page, "01-empty");
+    },
+  ],
+  [
     "adding a folder keeps structure and reports rejects",
-    async () => {
+    async ({ app, page, inputs }) => {
       const message = await freshList(app, page, inputs.pick);
       assert.match(
         message ?? "",
@@ -202,43 +191,46 @@ const main = async () => {
       );
       await shoot(page, "02-added");
     },
-  );
-
-  await scenario("transparent run writes PNG cutouts", async () => {
-    await runAll(page);
-    assert.deepEqual(await rowStatuses(page), [
-      "finished",
-      "finished",
-      "finished",
-    ]);
-    const files = await listFiles(outputRoot);
-    assert.deepEqual(
-      files,
-      expected.map((name) => `${name}.png`),
-    );
-    for (const file of files) {
-      const meta = await sharp(path.join(outputRoot, file)).metadata();
-      assert.equal(meta.hasAlpha, true, file);
-    }
-    await shoot(page, "03-finished-transparent");
-  });
-
-  await scenario("second run skips existing outputs", async () => {
-    await freshList(app, page, inputs.pick);
-    await runAll(page);
-    assert.deepEqual(await rowStatuses(page), [
-      "skipped",
-      "skipped",
-      "skipped",
-    ]);
-    const text = await page.locator("#rows").textContent();
-    assert.match(text, /Skipped: File already exists/);
-    await shoot(page, "04-skipped");
-  });
-
-  await scenario(
+  ],
+  [
+    "transparent run writes PNG cutouts",
+    async ({ page, expected }) => {
+      await runAll(page);
+      assert.deepEqual(await rowStatuses(page), [
+        "finished",
+        "finished",
+        "finished",
+      ]);
+      const files = await listFiles(outputRoot);
+      assert.deepEqual(
+        files,
+        expected.map((name) => `${name}.png`),
+      );
+      for (const file of files) {
+        const meta = await sharp(path.join(outputRoot, file)).metadata();
+        assert.equal(meta.hasAlpha, true, file);
+      }
+      await shoot(page, "03-finished-transparent");
+    },
+  ],
+  [
+    "second run skips existing outputs",
+    async ({ app, page, inputs }) => {
+      await freshList(app, page, inputs.pick);
+      await runAll(page);
+      assert.deepEqual(await rowStatuses(page), [
+        "skipped",
+        "skipped",
+        "skipped",
+      ]);
+      const text = await page.locator("#rows").textContent();
+      assert.match(text, /Skipped: File already exists/);
+      await shoot(page, "04-skipped");
+    },
+  ],
+  [
     "colored background with a drop shadow writes JPEGs",
-    async () => {
+    async ({ app, page, inputs, expected }) => {
       await page.click('[data-bg="color"]');
       await page.fill("#color-hex", "#2BB0CA");
       await page.press("#color-hex", "Enter");
@@ -266,73 +258,100 @@ const main = async () => {
       );
       await shoot(page, "05-colored");
     },
+  ],
+  [
+    "Photoshop file writes layered PSDs",
+    async ({ app, page, inputs, expected }) => {
+      await page.click('[data-bg="transparent"]');
+      await page.check("#use-psd");
+      await freshList(app, page, inputs.pick);
+      await runAll(page);
+      initializeCanvas(
+        () => {
+          throw new Error("no canvas");
+        },
+        (w, h) => ({
+          width: w,
+          height: h,
+          data: new Uint8ClampedArray(w * h * 4),
+        }),
+      );
+      const psd = readPsd(
+        await import("node:fs/promises").then(({ readFile }) =>
+          readFile(path.join(outputRoot, `${expected[0]}.psd`)),
+        ),
+        { useImageData: true },
+      );
+      const names = psd.children.map((layer) => layer.name);
+      assert.deepEqual(names, [
+        "Oscar's Remove BG - Original Image",
+        "Oscar's Remove BG - Shadows",
+        "Oscar's Remove BG",
+      ]);
+      assert.ok(psd.children.at(-1).mask, "cutout has a layer mask");
+      await shoot(page, "06-psd");
+    },
+  ],
+  [
+    "cancel stops after the current image",
+    async ({ app, page, inputs }) => {
+      await page.uncheck("#use-psd");
+      await page.selectOption("#shadow", "none");
+      await page.selectOption("#size", "preview");
+      // A fresh output folder (through the Change link) so nothing is skipped.
+      const fresh = path.join(home, "cancel-out");
+      await stubPicker(app, [fresh]);
+      await page.click("#change-output");
+      await page.waitForFunction(
+        (folder) =>
+          document.querySelector("#open-output")?.textContent.includes(folder),
+        fresh,
+      );
+      assert.equal((await state(page)).settings.outputPath, fresh);
+      await freshList(app, page, inputs.pick);
+      await page.click("#start");
+      await page.locator("#cancel").waitFor({ state: "visible" });
+      await page.click("#cancel");
+      await waitForStatus(page, /^Finished/);
+      const statuses = await rowStatuses(page);
+      assert.ok(
+        statuses.includes("ready"),
+        `some rows left ready: ${statuses}`,
+      );
+      assert.ok(
+        statuses.filter((s) => s === "finished").length <= 1,
+        `${statuses}`,
+      );
+      // The Start button must stay readable under the mouse.
+      await page.hover("#start");
+      const colors = await page.$eval("#start", (button) => {
+        const style = getComputedStyle(button);
+        return [style.color, style.backgroundColor];
+      });
+      assert.notEqual(colors[0], colors[1], `hovered Start: ${colors}`);
+      await shoot(page, "07-cancelled");
+    },
+  ],
+];
+
+const main = async () => {
+  const inputs = await prepareInputs();
+  const expected = [
+    `Trip/${stem(inputs.names[0])}`,
+    `Trip/${stem(inputs.names[1])}`,
+    stem(inputs.names[2]),
+  ].sort();
+  let session = await launch();
+  const { app, page } = session;
+  const context = { app, page, inputs, expected };
+  outputRoot = (await state(page)).settings.outputPath;
+  assert.ok(
+    outputRoot.startsWith(home),
+    `output inside the test home: ${outputRoot}`,
   );
-
-  await scenario("Photoshop file writes layered PSDs", async () => {
-    await page.click('[data-bg="transparent"]');
-    await page.check("#use-psd");
-    await freshList(app, page, inputs.pick);
-    await runAll(page);
-    initializeCanvas(
-      () => {
-        throw new Error("no canvas");
-      },
-      (w, h) => ({
-        width: w,
-        height: h,
-        data: new Uint8ClampedArray(w * h * 4),
-      }),
-    );
-    const psd = readPsd(
-      await import("node:fs/promises").then(({ readFile }) =>
-        readFile(path.join(outputRoot, `${expected[0]}.psd`)),
-      ),
-      { useImageData: true },
-    );
-    const names = psd.children.map((layer) => layer.name);
-    assert.deepEqual(names, [
-      "Oscar's Remove BG - Original Image",
-      "Oscar's Remove BG - Shadows",
-      "Oscar's Remove BG",
-    ]);
-    assert.ok(psd.children.at(-1).mask, "cutout has a layer mask");
-    await shoot(page, "06-psd");
-  });
-
-  await scenario("cancel stops after the current image", async () => {
-    await page.uncheck("#use-psd");
-    await page.selectOption("#shadow", "none");
-    await page.selectOption("#size", "preview");
-    // A fresh output folder (through the Change link) so nothing is skipped.
-    const fresh = path.join(home, "cancel-out");
-    await stubPicker(app, [fresh]);
-    await page.click("#change-output");
-    await page.waitForFunction(
-      (folder) =>
-        document.querySelector("#open-output")?.textContent.includes(folder),
-      fresh,
-    );
-    assert.equal((await state(page)).settings.outputPath, fresh);
-    await freshList(app, page, inputs.pick);
-    await page.click("#start");
-    await page.locator("#cancel").waitFor({ state: "visible" });
-    await page.click("#cancel");
-    await waitForStatus(page, /^Finished/);
-    const statuses = await rowStatuses(page);
-    assert.ok(statuses.includes("ready"), `some rows left ready: ${statuses}`);
-    assert.ok(
-      statuses.filter((s) => s === "finished").length <= 1,
-      `${statuses}`,
-    );
-    // The Start button must stay readable under the mouse.
-    await page.hover("#start");
-    const colors = await page.$eval("#start", (button) => {
-      const style = getComputedStyle(button);
-      return [style.color, style.backgroundColor];
-    });
-    assert.notEqual(colors[0], colors[1], `hovered Start: ${colors}`);
-    await shoot(page, "07-cancelled");
-  });
+  for (const [name, run] of SCENARIOS) {
+    await scenario(name, () => run(context));
+  }
 
   await scenario("no console errors in the window", async () => {
     assert.deepEqual(session.errors, []);
