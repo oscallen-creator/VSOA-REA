@@ -71,6 +71,7 @@ const addPaths = async (paths) => {
   const { accepted, rejected } = await collectInputs(
     paths,
     queue.knownSources(),
+    { outputFolder: settings.get().outputPath },
   );
   const added = queue.add(accepted);
   return {

@@ -306,20 +306,6 @@ const processAll = async (entries, context, reporter) => {
   return counts.failed > 0 ? EXIT.failed : EXIT.ok;
 };
 
-const isInside = (directory, file) => file.startsWith(directory + path.sep);
-
-// The default output folder often sits inside the folder being processed;
-// without this a second run would treat its own results as inputs.
-const withoutOwnOutput = (accepted, outputDir, warn) => {
-  const kept = accepted.filter(
-    ({ sourcePath }) => !isInside(outputDir, sourcePath),
-  );
-  const ignored = accepted.length - kept.length;
-  if (ignored > 0)
-    warn(`Ignoring ${ignored} file(s) inside the output folder.`);
-  return kept;
-};
-
 // Loaded on demand: sharp and the ONNX runtime take a while to start, which
 // --help and usage errors should not wait for.
 const loadRemover = async (config) => {
@@ -347,12 +333,15 @@ const run = async (argv, io) => {
   }
 
   const setup = await prepare(values, io);
+  // The default output folder often sits inside the folder being processed.
   const found = await collectInputs(
     positionals.map((input) => path.resolve(io.cwd, input)),
+    new Set(),
+    { outputFolder: setup.outputDir },
   );
   const note = describeRejections(found.accepted.length, found.rejected);
   if (note) io.warn(note);
-  const entries = withoutOwnOutput(found.accepted, setup.outputDir, io.warn);
+  const entries = found.accepted;
   if (entries.length === 0) throw new UsageError("No images to process.");
 
   const reporter = createReporter({

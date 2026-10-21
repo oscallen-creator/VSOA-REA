@@ -15,6 +15,29 @@ export const MAX_INPUT_PIXELS = 50_000_000;
 const DECODE_PIXEL_LIMIT = 1_000_000_000;
 const WHITE = { r: 255, g: 255, b: 255 };
 
+// EXIF orientations 5-8 turn the image a quarter, swapping its sides.
+const uprightSize = ({ width, height, orientation }) =>
+  orientation >= 5 ? { width: height, height: width } : { width, height };
+
+/** The largest size with the same aspect that fits maxPixels, or null. */
+export const fitArea = ({ width, height }, maxPixels) => {
+  if (width * height <= maxPixels) return null;
+  const ratio = Math.sqrt(maxPixels / (width * height));
+  const fitted = {
+    width: Math.max(1, Math.floor(width * ratio)),
+    height: Math.max(1, Math.floor(height * ratio)),
+  };
+  // A side clamped up to 1 px can push a very thin image over the budget.
+  if (fitted.width * fitted.height > maxPixels) {
+    if (fitted.width > fitted.height) {
+      fitted.width = Math.max(1, Math.floor(maxPixels / fitted.height));
+    } else {
+      fitted.height = Math.max(1, Math.floor(maxPixels / fitted.width));
+    }
+  }
+  return fitted;
+};
+
 /**
  * Decodes any format sharp reads into 8-bit sRGB pixels, upright (EXIF
  * orientation applied) and flattened over white, plus the input's DPI.
@@ -29,15 +52,10 @@ export const decodeImage = async (
     .rotate()
     .flatten({ background: WHITE })
     .toColourspace("srgb");
-  const pixels = metadata.width * metadata.height;
-  if (pixels > maxPixels) {
-    // Bounding the longest side scales the area the same way whichever way
-    // EXIF rotates the image.
-    const side = Math.floor(
-      Math.max(metadata.width, metadata.height) * Math.sqrt(maxPixels / pixels),
-    );
-    pipeline = pipeline.resize(side, side, {
-      fit: "inside",
+  const target = fitArea(uprightSize(metadata), maxPixels);
+  if (target) {
+    pipeline = pipeline.resize(target.width, target.height, {
+      fit: "fill",
       kernel: "lanczos3",
     });
   }
@@ -72,7 +90,8 @@ export const createRemover = ({
   let segmenter;
 
   const prepare = ({ signal } = {}) => {
-    segmenter ??= ensureModel(model, {
+    if (segmenter) return segmenter;
+    const attempt = ensureModel(model, {
       dir: modelDir,
       fetch,
       signal,
@@ -80,11 +99,13 @@ export const createRemover = ({
     })
       .then((file) => createSegmenterFn(file, model))
       .catch((error) => {
-        // Let a later call retry, e.g. after the network comes back.
-        segmenter = undefined;
+        // Let a later call retry, e.g. after the network comes back, unless a
+        // newer attempt (after dispose) has already taken this one's place.
+        if (segmenter === attempt) segmenter = undefined;
         throw error;
       });
-    return segmenter;
+    segmenter = attempt;
+    return attempt;
   };
 
   const removeBackground = async (input, rawOptions = {}) => {

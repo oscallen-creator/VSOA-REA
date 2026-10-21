@@ -209,7 +209,7 @@ describe("inputs and output paths", () => {
     const { code, stderr, calls } = await run(["."], { cwd: dir });
     assert.equal(code, 0);
     assert.equal(calls.length, 1);
-    assert.match(stderr, /Ignoring 1 file\(s\) inside the output folder/);
+    assert.match(stderr, /inside the output folder/);
   });
 
   test("a rejected input is reported while the others still run", async () => {

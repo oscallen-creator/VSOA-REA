@@ -24,6 +24,7 @@ export const Rejection = Object.freeze({
   WrongType: "wrong_type",
   TooLarge: "too_large",
   AlreadyAdded: "already_added",
+  InsideOutput: "inside_output",
   Unreadable: "unreadable",
 });
 
@@ -31,7 +32,19 @@ const isHidden = (name) => name.startsWith(".");
 const isImageName = (name) =>
   IMAGE_EXTENSIONS.includes(path.extname(name).toLowerCase());
 
-const classify = (file, size, known) => {
+/** path.relative folds case on Windows, so C:\\Out and c:\\out match. */
+export const isInsideFolder = (folder, file) => {
+  const relative = path.relative(folder, file);
+  return (
+    relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)
+  );
+};
+
+const classify = (file, size, known, outputFolder) => {
+  // A folder holding the output folder would otherwise feed results back in.
+  if (outputFolder && isInsideFolder(outputFolder, file)) {
+    return Rejection.InsideOutput;
+  }
   if (!isImageName(file)) return Rejection.WrongType;
   if (size > MAX_INPUT_BYTES) return Rejection.TooLarge;
   if (known.has(file)) return Rejection.AlreadyAdded;
@@ -80,9 +93,15 @@ async function* expand(paths) {
 /**
  * @param {string[]} paths absolute paths of dropped/picked files and folders
  * @param {Set<string>} known source paths already in the list
+ * @param {object} [options]
+ * @param {string} [options.outputFolder] files inside it are rejected
  * @returns {Promise<{accepted: {sourcePath, relativePath}[], rejected: {sourcePath, reason}[]}>}
  */
-export const collectInputs = async (paths, known = new Set()) => {
+export const collectInputs = async (
+  paths,
+  known = new Set(),
+  { outputFolder } = {},
+) => {
   const accepted = [];
   const rejected = [];
   const seen = new Set(known);
@@ -98,7 +117,7 @@ export const collectInputs = async (paths, known = new Set()) => {
       rejected.push({ sourcePath: item.file, reason: Rejection.Unreadable });
       continue;
     }
-    const reason = classify(item.file, size, seen);
+    const reason = classify(item.file, size, seen, outputFolder);
     if (reason) {
       rejected.push({ sourcePath: item.file, reason });
       continue;
@@ -116,6 +135,10 @@ const REASON_TEXT = {
   ],
   [Rejection.TooLarge]: ["larger than 200 MB", "larger than 200 MB"],
   [Rejection.AlreadyAdded]: ["already in the list", "already in the list"],
+  [Rejection.InsideOutput]: [
+    "inside the output folder",
+    "inside the output folder",
+  ],
   [Rejection.Unreadable]: ["not readable", "not readable"],
 };
 
