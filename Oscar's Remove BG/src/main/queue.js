@@ -82,7 +82,13 @@ const processRow = async ({ row, settings, runJob, update }) => {
   update({
     status: skipped ? RowStatus.Skipped : RowStatus.Finished,
     message: skipped ? SKIPPED_MESSAGE : "",
-    output: { ...result, path: target, format, bgMode: settings.bgMode },
+    output: {
+      ...result,
+      path: target,
+      format,
+      bgMode: settings.bgMode,
+      bgColor: settings.bgMode === "color" ? settings.bgColor : null,
+    },
   });
 };
 

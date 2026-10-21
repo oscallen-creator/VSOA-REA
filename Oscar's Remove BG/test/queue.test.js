@@ -338,6 +338,7 @@ describe("queue start", () => {
       width: 640,
       height: 480,
       bgMode: "transparent",
+      bgColor: null,
     });
   });
 });

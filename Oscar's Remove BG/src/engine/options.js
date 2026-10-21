@@ -25,6 +25,8 @@ const PARAMETERS = new Set([
   "scale",
   "position",
   "roi",
+  "shadow_type",
+  "shadow_opacity",
 ]);
 
 const choices = (names, aliases = {}) =>
@@ -37,7 +39,9 @@ const SIZES = choices(["auto", "preview", "full"], {
   hd: "full",
   "4k": "full",
 });
-const FORMATS = choices(["auto", "png", "jpg", "webp", "zip"], { jpeg: "jpg" });
+const FORMATS = choices(["auto", "png", "jpg", "webp", "zip", "psd"], {
+  jpeg: "jpg",
+});
 const CHANNELS = choices(["rgba", "alpha"]);
 // No local model specializes on these; remove.bg accepts them, so we do too.
 const TYPES = choices(["auto", "person", "product"], {
@@ -45,6 +49,23 @@ const TYPES = choices(["auto", "person", "product"], {
   animal: "auto",
   graphic: "auto",
   transportation: "auto",
+});
+
+// "3D" is the only mixed-case name; input is lowercased before the lookup.
+const SHADOW_TYPES = new Map(
+  ["none", "auto", "car", "3D", "drop"].map((name) => [
+    name.toLowerCase(),
+    name,
+  ]),
+);
+// What remove.bg's UI picks when the shadow type changes. Its "auto" opacity is
+// 90 for cars and 50 for anything else; cars cannot be told apart here.
+const SHADOW_DEFAULT_OPACITY = Object.freeze({
+  none: 0,
+  auto: 0.5,
+  car: 0.9,
+  "3D": 0.5,
+  drop: 0.5,
 });
 
 const BOOLEANS = new Map([
@@ -110,6 +131,7 @@ const parseSize = choiceParser("size", SIZES, "auto");
 const parseFormat = choiceParser("format", FORMATS, "auto");
 const parseChannels = choiceParser("channels", CHANNELS, "rgba");
 const parseType = choiceParser("type", TYPES, "auto");
+const parseShadowType = choiceParser("shadow_type", SHADOW_TYPES, "none");
 
 const parseCrop = (value) => {
   if (isAbsent(value)) return false;
@@ -258,6 +280,23 @@ export const parsePosition = (value) => {
   return { x, y };
 };
 
+/**
+ * 0% to 100% as a fraction; unset, "auto", "none" or "" mean the default for
+ * the shadow type. A bare number is a percent, as in remove.bg's form.
+ */
+const parseShadowOpacity = (value, shadowType) => {
+  const word = typeof value === "string" ? value.trim().toLowerCase() : null;
+  if (isAbsent(value) || ["", "auto", "none"].includes(word)) {
+    return SHADOW_DEFAULT_OPACITY[shadowType];
+  }
+  const percent = percentFromString(value);
+  // NaN fails both comparisons, so malformed input lands here too.
+  if (!(percent >= 0 && percent <= 100)) {
+    throw invalid("shadow_opacity", value, 'expected "auto" or 0% to 100%');
+  }
+  return percent / 100;
+};
+
 // Lengths in different units cannot be compared without the image size.
 const isOrdered = (from, to) => from.unit !== to.unit || to.value > from.value;
 
@@ -322,6 +361,22 @@ const freezeDeep = (value) => {
   return Object.freeze(value);
 };
 
+/**
+ * Parses raw option values into the frozen shape the compositor reads:
+ *
+ *     size, format, channels, type: canonical strings (see the choices above)
+ *     bgColor        { r, g, b, alpha 0..1 } | null
+ *     bgImage        Buffer | null (undecoded)
+ *     crop           boolean
+ *     cropMargin     { top, right, bottom, left }, each { value, unit }
+ *     scale          0.1..1 | null (original)
+ *     position       { x, y } 0..1 | null (original)
+ *     roi            [x1, y1, x2, y2], each { value, unit } | null
+ *     shadowType     "none" | "auto" | "car" | "3D" | "drop"
+ *     shadowOpacity  0..1, resolved to the type's default when not given
+ *
+ * `unit` is "px" or "%".
+ */
 export const parseOptions = (raw = {}) => {
   const given = collectGiven(raw ?? {});
 
@@ -341,6 +396,8 @@ export const parseOptions = (raw = {}) => {
     given.get("position") ?? (scale === null ? undefined : "center"),
   );
 
+  const shadowType = parseShadowType(given.get("shadow_type"));
+
   return freezeDeep({
     size: parseSize(given.get("size")),
     format: parseFormat(given.get("format")),
@@ -353,5 +410,7 @@ export const parseOptions = (raw = {}) => {
     scale,
     position,
     roi: parseRoi(given.get("roi")),
+    shadowType,
+    shadowOpacity: parseShadowOpacity(given.get("shadow_opacity"), shadowType),
   });
 };

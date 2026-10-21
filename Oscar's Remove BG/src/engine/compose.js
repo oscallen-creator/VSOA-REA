@@ -1,9 +1,11 @@
 // Turns the original pixels plus a segmentation alpha mask into the final
 // output image, following the public remove.bg API semantics: ROI, subject
-// box, crop / scale / position, size cap, background, channels, encoding.
-// Options arrive already normalized and are never modified.
+// box, crop / scale / position, size cap, shadow, background, channels,
+// encoding. Options arrive already normalized and are never modified.
 
 import sharp from "sharp";
+import { encodePsd } from "./psd.js";
+import { SHADOW_STYLES, renderShadow } from "./shadow.js";
 import { createZip } from "./zip.js";
 
 /** Pixels at or above this alpha count as subject when boxing it. */
@@ -19,12 +21,15 @@ const CENTER = Object.freeze({ x: 0.5, y: 0.5 });
 const WHITE = Object.freeze({ r: 255, g: 255, b: 255, alpha: 1 });
 
 const PNG_COMPRESSION_LEVEL = 6;
-const JPEG_QUALITY = 90;
+// remove.bg exports its JPEGs at 0.92 from a canvas.
+export const JPEG_QUALITY = 92;
 const WEBP_QUALITY = 90;
 const WEBP_ALPHA_QUALITY = 100;
 
 const CHANNELS = ["rgba", "alpha"];
-const FORMATS = ["auto", "png", "jpg", "webp", "zip"];
+const FORMATS = ["auto", "png", "jpg", "webp", "zip", "psd"];
+const PSD_MIME = "image/vnd.adobe.photoshop";
+const SHADOW_TYPES = ["none", ...Object.keys(SHADOW_STYLES)];
 
 export class ForegroundError extends Error {
   constructor() {
@@ -60,7 +65,8 @@ export const applyRoi = (alpha, roi, width, height) => {
 
 // --- 2. Subject box -----------------------------------------------------------
 
-export const findSubjectBox = (alpha, width, height) => {
+// Null when no pixel reaches the threshold.
+const scanSubjectBox = (alpha, width, height) => {
   let minX = width;
   let maxX = -1;
   let minY = height;
@@ -80,13 +86,19 @@ export const findSubjectBox = (alpha, width, height) => {
     minY = Math.min(minY, y);
     maxY = y;
   }
-  if (maxY < 0) throw new ForegroundError();
+  if (maxY < 0) return null;
   return {
     left: minX,
     top: minY,
     width: maxX - minX + 1,
     height: maxY - minY + 1,
   };
+};
+
+export const findSubjectBox = (alpha, width, height) => {
+  const box = scanSubjectBox(alpha, width, height);
+  if (box === null) throw new ForegroundError();
+  return box;
 };
 
 // --- 3. Geometry --------------------------------------------------------------
@@ -269,7 +281,52 @@ const renderCanvas = async (image, alpha, { canvas, region, drawn, at }) => {
   return rendered;
 };
 
-// --- 5. Background ------------------------------------------------------------------
+// --- 5. Shadow ----------------------------------------------------------------------
+
+// The subject over a black layer of alpha `shadow / 255`, in straight alpha and
+// in place. The layer has no colour, so only the subject adds to the colour.
+const compositeShadow = (rgba, shadow) => {
+  for (let i = 0, p = 0; p < shadow.length; i += 4, p++) {
+    const layerAlpha = shadow[p] / 255;
+    const a = rgba[i + 3];
+    if (layerAlpha === 0 || a === 255) continue;
+    const subjectAlpha = a / 255;
+    const outAlpha = subjectAlpha + layerAlpha * (1 - subjectAlpha);
+    const subjectWeight = subjectAlpha / outAlpha;
+    rgba[i] = Math.round(rgba[i] * subjectWeight);
+    rgba[i + 1] = Math.round(rgba[i + 1] * subjectWeight);
+    rgba[i + 2] = Math.round(rgba[i + 2] * subjectWeight);
+    rgba[i + 3] = Math.round(outAlpha * 255);
+  }
+};
+
+// Shadow coverage cast by the canvas's cutout, or null. Callers that predate
+// shadows pass options without the two fields.
+const castShadow = async (
+  canvas,
+  { shadowType = "none", shadowOpacity = 0 },
+) => {
+  if (shadowType === "none" || shadowOpacity === 0) return null;
+  const alpha = extractAlpha(canvas.data);
+  // A downscale can leave no pixel above the threshold; nothing to cast from.
+  const box = scanSubjectBox(alpha, canvas.width, canvas.height);
+  if (box === null) return null;
+  return renderShadow({
+    alpha,
+    width: canvas.width,
+    height: canvas.height,
+    box,
+    type: shadowType,
+    opacity: shadowOpacity,
+  });
+};
+
+const applyShadow = async (canvas, options) => {
+  const shadow = await castShadow(canvas, options);
+  if (shadow !== null) compositeShadow(canvas.data, shadow);
+};
+
+// --- 6. Background ------------------------------------------------------------------
 
 // Source-over in straight alpha, in place. `canvas` is always our own buffer.
 const compositeOverColor = (rgba, { r, g, b, alpha: backdropAlpha }) => {
@@ -339,51 +396,78 @@ const applyBackground = async (canvas, { bgColor, bgImage }) => {
   }
 };
 
-// --- 6./7. Channels and encoding --------------------------------------------------
+// --- 7./8. Channels and encoding --------------------------------------------------
+
+// The input's DPI as the whole number remove.bg writes; null writes none.
+const toDpi = (density) => {
+  if (density === undefined || density === null) return null;
+  if (!(Number.isFinite(density) && density > 0)) {
+    throw new Error(`Invalid density ${density}; expected a positive number.`);
+  }
+  return Math.max(1, Math.round(density));
+};
+
+const withDpi = (image, dpi) => (dpi === null ? image : image.withDensity(dpi));
+
+// A browser canvas keeps premultiplied alpha, so remove.bg's PNG has RGB 0
+// wherever nothing shows. Doing the same keeps the removed background out of the
+// file.
+const clearHiddenColor = (rgba) => {
+  for (let i = 3; i < rgba.length; i += 4) {
+    if (rgba[i] !== 0) continue;
+    rgba[i - 3] = 0;
+    rgba[i - 2] = 0;
+    rgba[i - 1] = 0;
+  }
+};
 
 // sharp writes 1-channel raw input as RGB unless told it is grayscale.
-const encodeAlphaPng = (canvas) =>
-  rawInput(extractAlpha(canvas.data), canvas, 1)
+const encodeAlphaPng = (canvas, dpi) =>
+  withDpi(rawInput(extractAlpha(canvas.data), canvas, 1), dpi)
     .toColourspace("b-w")
     .png({ compressionLevel: PNG_COMPRESSION_LEVEL })
     .toBuffer();
 
 // Takes the colour channels as they are; callers flatten first when needed.
-const encodeColorJpeg = (canvas) =>
-  rawInput(extractRgb(canvas.data), canvas, 3)
+const encodeColorJpeg = (canvas, dpi) =>
+  withDpi(rawInput(extractRgb(canvas.data), canvas, 3), dpi)
     .jpeg({ quality: JPEG_QUALITY })
     .toBuffer();
 
 const ENCODERS = {
   png: {
     mime: "image/png",
-    encode: (canvas) =>
-      rawInput(canvas.data, canvas, 4)
+    encode: (canvas, dpi) => {
+      clearHiddenColor(canvas.data);
+      return withDpi(rawInput(canvas.data, canvas, 4), dpi)
         .png({ compressionLevel: PNG_COMPRESSION_LEVEL })
-        .toBuffer(),
+        .toBuffer();
+    },
   },
   webp: {
     mime: "image/webp",
-    encode: (canvas) =>
-      rawInput(canvas.data, canvas, 4)
+    encode: (canvas, dpi) => {
+      clearHiddenColor(canvas.data);
+      return withDpi(rawInput(canvas.data, canvas, 4), dpi)
         .webp({ quality: WEBP_QUALITY, alphaQuality: WEBP_ALPHA_QUALITY })
-        .toBuffer(),
+        .toBuffer();
+    },
   },
   jpg: {
     mime: "image/jpeg",
-    encode: (canvas) => {
+    encode: (canvas, dpi) => {
       compositeOverColor(canvas.data, WHITE);
-      return encodeColorJpeg(canvas);
+      return encodeColorJpeg(canvas, dpi);
     },
   },
   zip: {
     mime: "application/zip",
     // color.jpg keeps the colours of the final canvas unflattened; the cutout
     // lives in alpha.png.
-    encode: async (canvas) => {
+    encode: async (canvas, dpi) => {
       const [color, alpha] = await Promise.all([
-        encodeColorJpeg(canvas),
-        encodeAlphaPng(canvas),
+        encodeColorJpeg(canvas, dpi),
+        encodeAlphaPng(canvas, dpi),
       ]);
       return createZip([
         { name: "color.jpg", data: color },
@@ -391,6 +475,28 @@ const ENCODERS = {
       ]);
     },
   },
+};
+
+// Photoshop gets the cutout, its shadow and the background as separate layers,
+// like remove.bg's PSD, so the mask stays editable.
+const encodeLayeredPsd = async (canvas, options, dpi) => {
+  if (options.bgImage) {
+    throw new Error(
+      "PSD output takes a background colour, not a background image.",
+    );
+  }
+  const color = extractRgb(canvas.data);
+  const { bgColor } = options;
+  return encodePsd({
+    width: canvas.width,
+    height: canvas.height,
+    color,
+    alpha: extractAlpha(canvas.data),
+    original: color,
+    shadow: await castShadow(canvas, options),
+    background: bgColor && { r: bgColor.r, g: bgColor.g, b: bgColor.b },
+    density: dpi,
+  });
 };
 
 const resolveFormat = (format, canvas) => {
@@ -419,6 +525,7 @@ const assertInputs = ({ image, alpha, options }) => {
   assertOneOf("size", options.size, Object.keys(MAX_PIXELS));
   assertOneOf("format", options.format, FORMATS);
   assertOneOf("channels", options.channels, CHANNELS);
+  assertOneOf("shadow type", options.shadowType ?? "none", SHADOW_TYPES);
   if (options.channels === "alpha" && options.format === "zip") {
     throw new Error(
       'format "zip" cannot be combined with channels "alpha"; ask for png, jpg, webp or auto.',
@@ -426,8 +533,14 @@ const assertInputs = ({ image, alpha, options }) => {
   }
 };
 
-export const compose = async ({ image, alpha, options }) => {
+/**
+ * @param {object} args
+ * @param {number | null} [args.density] the input's DPI; written into the
+ *   output when set, left out when not
+ */
+export const compose = async ({ image, alpha, options, density = null }) => {
   assertInputs({ image, alpha, options });
+  const dpi = toDpi(density);
   const { width, height } = image;
 
   const masked = applyRoi(alpha, options.roi, width, height);
@@ -440,21 +553,29 @@ export const compose = async ({ image, alpha, options }) => {
     canvas = { ...size, data: await resizeRgba(canvas.data, canvas, size) };
   }
 
-  const finish = (buffer, format) => ({
+  const finish = (buffer, format, mime = ENCODERS[format].mime) => ({
     buffer,
     format,
-    mime: ENCODERS[format].mime,
+    mime,
     width: canvas.width,
     height: canvas.height,
     subjectBox,
   });
 
+  if (options.format === "psd" && options.channels === "rgba") {
+    const psd = await encodeLayeredPsd(canvas, options, dpi);
+    return finish(psd, "psd", PSD_MIME);
+  }
+
+  // The shadow is part of the cutout: the matte and the zip's files include it.
+  await applyShadow(canvas, options);
+
   // A matte ignores any background: it is the cutout's own alpha.
   if (options.channels === "alpha") {
-    return finish(await encodeAlphaPng(canvas), "png");
+    return finish(await encodeAlphaPng(canvas, dpi), "png");
   }
 
   await applyBackground(canvas, options);
   const format = resolveFormat(options.format, canvas);
-  return finish(await ENCODERS[format].encode(canvas), format);
+  return finish(await ENCODERS[format].encode(canvas, dpi), format);
 };
