@@ -17,7 +17,7 @@ param(
     [switch]$Full
 )
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = 1
+$ScriptVersion = 2
 $NamePattern = 'remove[\s._-]*bg'
 $MB = 1024 * 1024
 # Chromium/Electron runtime files: hashed in the inventory, not copied.
@@ -121,10 +121,10 @@ function Get-AsarEntries($node, [string]$prefix) {
         if ($child.ContainsKey('files')) { Get-AsarEntries $child $rel; continue }
         [pscustomobject]@{
             Path = $rel
-            Size = if ($child.ContainsKey('size')) { [long]$child['size'] } else { 0 }
-            Offset = if ($child.ContainsKey('offset')) { [long]$child['offset'] } else { -1 }
+            Size = $(if ($child.ContainsKey('size')) { [long]$child['size'] } else { 0 })
+            Offset = $(if ($child.ContainsKey('offset')) { [long]$child['offset'] } else { -1 })
             Unpacked = $child.ContainsKey('unpacked') -and [bool]$child['unpacked']
-            Link = if ($child.ContainsKey('link')) { [string]$child['link'] } else { '' }
+            Link = $(if ($child.ContainsKey('link')) { [string]$child['link'] } else { '' })
         }
     }
 }
@@ -216,7 +216,8 @@ try {
     $all = @(Get-ChildItem -LiteralPath $AppDir -Recurse -File -Force -ErrorAction SilentlyContinue -ErrorVariable listErrors)
     foreach ($f in $all) {
         $rel = $f.FullName.Substring($AppDir.Length + 1).Replace('\', '/')
-        $hash = try { (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash } catch { 'unreadable' }
+        $hash = 'unreadable'
+        try { $hash = (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash } catch { }
         $vi = if ($f.Extension -match '^\.(exe|dll|node)$') { $f.VersionInfo }
         $status = if ($rel -match $Runtime -or $rel -match '^resources/app\.asar(\.unpacked/|$)') { 'not copied: runtime or asar' }
             elseif ($mode -eq 'electron-folder' -and $rel.StartsWith('resources/app/')) { Get-Wanted $rel.Substring(14) $f.Length }
@@ -231,8 +232,8 @@ try {
         }
         $inventory.Add([pscustomobject]@{
             Path = $rel; Size = $f.Length; SHA256 = $hash; Status = $status
-            Product = if ($vi) { $vi.ProductName }; Company = if ($vi) { $vi.CompanyName }
-            FileVersion = if ($vi) { $vi.FileVersion }; ProductVersion = if ($vi) { $vi.ProductVersion }
+            Product = $vi.ProductName; Company = $vi.CompanyName
+            FileVersion = $vi.FileVersion; ProductVersion = $vi.ProductVersion
         })
     }
     $inventory | Export-Csv -LiteralPath (Join-Path $meta 'inventory.csv') -NoTypeInformation -Encoding UTF8
