@@ -99,6 +99,9 @@ The key is never logged. The same file can override hotkeys, for example
 - macOS needs Accessibility and Input Monitoring permission for the hotkeys and
   paste. The Fn-key defaults Wispr uses there are not supported.
 
+See [HANDOFF.md](HANDOFF.md) for everything tested, bugs found, and the
+checklist of things still to verify on a real Windows or Mac computer.
+
 ## Development
 
 ```powershell
