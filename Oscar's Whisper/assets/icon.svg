@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Squircle-style rounded square: 824x824 safe area, ~100px margin, continuous corners. -->
+    <clipPath id="shape">
+      <path d="M360 100 L664 100 C874 100 924 150 924 360 L924 664 C924 874 874 924 664 924 L360 924 C150 924 100 874 100 664 L100 360 C100 150 150 100 360 100 Z"/>
+    </clipPath>
+    <!-- Dark body, matches the on-screen bar's dark pill. -->
+    <linearGradient id="bg" x1="0" y1="100" x2="0" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2a2438"/>
+      <stop offset="1" stop-color="#121016"/>
+    </linearGradient>
+    <!-- Soft lavender glow behind the glyph. -->
+    <radialGradient id="glow" cx="512" cy="440" r="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a394c7" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#a394c7" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Faint top sheen. -->
+    <linearGradient id="sheen" x1="0" y1="100" x2="0" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <g clip-path="url(#shape)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#bg)"/>
+    <rect x="100" y="100" width="824" height="824" fill="url(#glow)"/>
+    <rect x="100" y="100" width="824" height="420" fill="url(#sheen)"/>
+    <!-- Thin white border, echoing the on-screen bar's hairline -->
+    <path d="M360 100 L664 100 C874 100 924 150 924 360 L924 664 C924 874 874 924 664 924 L360 924 C150 924 100 874 100 664 L100 360 C100 150 150 100 360 100 Z" fill="none" stroke="#ffffff" stroke-opacity="0.32" stroke-width="10"/>
+  </g>
+
+  <!-- Waveform bars (accent lavender): "whisper" -->
+  <g fill="none" stroke="#a394c7" stroke-width="42" stroke-linecap="round">
+    <path d="M254 360 V500"/>
+    <path d="M186 395 V465"/>
+    <path d="M770 360 V500"/>
+    <path d="M838 395 V465"/>
+  </g>
+
+  <!-- Microphone (white) -->
+  <g transform="translate(0 20)">
+    <rect x="405" y="230" width="214" height="340" rx="107" fill="#ffffff"/>
+    <g fill="none" stroke="#ffffff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M332 440 V468 A180 180 0 0 0 692 468 V440"/>
+      <path d="M512 660 V716"/>
+      <path d="M418 722 H606"/>
+    </g>
+  </g>
+</svg>

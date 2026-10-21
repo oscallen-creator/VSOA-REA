@@ -3,24 +3,67 @@
   "productName": "Oscar's Whisper",
   "version": "0.1.0",
   "description": "Minimal push-to-talk dictation: always-on bar, global hotkey, voice capture, cleanup, paste.",
+  "author": "Oscar",
   "private": true,
   "type": "module",
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win --x64",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux --x64"
+  },
+  "build": {
+    "appId": "io.github.oscallen-creator.oscars-whisper",
+    "executableName": "OscarsWhisper",
+    "artifactName": "OscarsWhisper-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "out",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "npmRebuild": false,
+    "publish": null,
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "artifactName": "OscarsWhisper-Setup-${version}.${ext}",
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity",
+      "extendInfo": {
+        "LSUIElement": true,
+        "NSMicrophoneUsageDescription": "Oscar's Whisper records your voice while you dictate."
+      }
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Utility"
+    }
   },
   "dependencies": {
     "uiohook-napi": "1.5.5"
   },
   "devDependencies": {
-    "electron": "44.9.0"
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3"
   },
   "engines": {
     "node": ">=22"
   },
   "allowScripts": {
     "electron@44.9.0": true,
+    "electron-winstaller@5.4.0": false,
     "uiohook-napi@1.5.5": true
   }
 }

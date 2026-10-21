@@ -113,6 +113,23 @@ const createLevelFeed = () => {
   };
 };
 
+/**
+ * Login items point at the running executable, so they are only offered in the installed app
+ * (in development that would be the bare Electron binary). Electron has no login items on Linux.
+ */
+const startAtLoginItems = () => {
+  if (!app.isPackaged || process.platform === "linux") return [];
+  return [
+    {
+      label: "Start at login",
+      type: "checkbox",
+      checked: app.getLoginItemSettings().openAtLogin,
+      click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }),
+    },
+    { type: "separator" },
+  ];
+};
+
 const fromBar = (event) => event.sender === bar?.window.webContents;
 
 const handleBarInput = (dictation) => {
@@ -144,6 +161,7 @@ const handleBarInput = (dictation) => {
     Menu.buildFromTemplate([
       { label: "Oscar's Whisper", enabled: false },
       { type: "separator" },
+      ...startAtLoginItems(),
       { label: "Quit", click: () => app.quit() },
     ]).popup({ window: bar.window });
   });
@@ -190,7 +208,14 @@ const main = async () => {
 };
 
 app.on("window-all-closed", () => {});
-main().catch((error) => {
-  console.error("[oscars-whisper] failed to start", error);
-  app.exit(1);
-});
+// A second copy (e.g. launched again from the Start menu) would add a second key hook and
+// microphone, so every dictation would be pasted twice.
+if (app.requestSingleInstanceLock()) {
+  main().catch((error) => {
+    console.error("[oscars-whisper] failed to start", error);
+    app.exit(1);
+  });
+} else {
+  console.log("[oscars-whisper] already running; this copy exits");
+  app.quit();
+}
