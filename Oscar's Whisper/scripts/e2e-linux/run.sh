@@ -4,6 +4,8 @@
 # a separate text box. Needs: Xvfb, xdotool, xclip, python3 with tkinter, and `npm install` done.
 # Usage: bash scripts/e2e-linux/run.sh   (from the "Oscar's Whisper" folder)
 # Set PYTHON to a Python that has tkinter if the default python3 does not.
+# Set OSCARS_WHISPER_BIN to a packaged executable (e.g. out/linux-unpacked/OscarsWhisper) to test
+# the built app instead of the development copy.
 set -u
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 APP=$(cd "$HERE/../.." && pwd)
@@ -16,7 +18,16 @@ for tool in Xvfb xdotool xclip "$PYTHON"; do
 done
 "$PYTHON" -c "import tkinter" 2> /dev/null ||
   { echo "FAIL: $PYTHON has no tkinter; set PYTHON=/path/to/python-with-tk"; exit 1; }
-[ -x "$APP/node_modules/.bin/electron" ] || { echo "FAIL: run npm install first"; exit 1; }
+# APP_PROCESS matches the app's processes (and its Chromium children) for cleanup. It must not
+# be a prefix of other tools' paths: "node_modules/electron" would also match electron-builder.
+if [ -n "${OSCARS_WHISPER_BIN:-}" ]; then
+  LAUNCH=("$OSCARS_WHISPER_BIN")
+  APP_PROCESS=$OSCARS_WHISPER_BIN
+else
+  LAUNCH=("$APP/node_modules/.bin/electron" .)
+  APP_PROCESS=$APP/node_modules/electron/dist/
+fi
+[ -x "${LAUNCH[0]}" ] || { echo "FAIL: ${LAUNCH[0]} not found (run npm install first)"; exit 1; }
 
 Xvfb :99 -screen 0 1280x800x24 > "$OUT/xvfb.log" 2>&1 &
 XVFB=$!
@@ -34,7 +45,7 @@ fi
 xdotool windowfocus --sync "$TARGET"
 printf 'ORIGINAL CLIPBOARD' | xclip -selection clipboard
 
-(cd "$APP" && OSCARS_WHISPER_DEBUG=1 exec ./node_modules/.bin/electron . --no-sandbox \
+(cd "$APP" && OSCARS_WHISPER_DEBUG=1 exec "${LAUNCH[@]}" --no-sandbox \
   --disable-gpu --use-fake-device-for-media-stream --use-fake-ui-for-media-stream) \
   > "$OUT/app.log" 2>&1 &
 APP_PID=$!
@@ -82,12 +93,41 @@ xdotool keyup super keyup ctrl
 sleep 2
 check "accidental tap ignored" 2
 
+echo "=== 4. launch a second copy (expect it to exit; one more hold then pastes only once)"
+(cd "$APP" && OSCARS_WHISPER_DEBUG=1 exec "${LAUNCH[@]}" --no-sandbox \
+  --disable-gpu --use-fake-device-for-media-stream --use-fake-ui-for-media-stream) \
+  > "$OUT/second.log" 2>&1 &
+SECOND_PID=$!
+for _ in $(seq 100); do
+  kill -0 "$SECOND_PID" 2> /dev/null || break
+  sleep 0.1
+done
+# A copy that is still running is left alive, so the paste count below also catches it pasting.
+if kill -0 "$SECOND_PID" 2> /dev/null; then
+  echo "FAIL: second copy exited (still running after 10 s)"
+  FAILURES=$((FAILURES + 1))
+else
+  echo "PASS: second copy exited"
+fi
+if grep -q "already running" "$OUT/second.log"; then
+  echo "PASS: second copy logged 'already running'"
+else
+  echo "FAIL: second copy logged 'already running' (see $OUT/second.log)"
+  FAILURES=$((FAILURES + 1))
+fi
+xdotool windowfocus --sync "$TARGET"
+xdotool keydown ctrl keydown super
+sleep 2
+xdotool keyup super keyup ctrl
+sleep 3
+check "single instance: one paste per dictation" 3
+
 echo "=== app log (notices and debug lines)"
 grep -E '^\[oscars-whisper' "$OUT/app.log" | grep -v 'shape report'
 echo "(full logs in $OUT)"
 
 kill "$APP_PID" "$TARGET_PID" 2>/dev/null
-pkill -f "$APP/node_modules/electron" 2>/dev/null
+pkill -f "$APP_PROCESS" 2>/dev/null
 kill "$XVFB" 2>/dev/null
 wait 2>/dev/null
 [ "$FAILURES" -eq 0 ] && echo "ALL PASSED" || echo "$FAILURES FAILED"
