@@ -242,12 +242,18 @@ const open = async (options) => {
 };
 
 describe("createSegmenter session and tensor", () => {
-  test("opens the model file on the CPU with full graph optimization", async () => {
+  test("opens the model on the CPU, fully optimized, without the memory arena", async () => {
     const { log, segmenter } = await open();
     assert.deepEqual(log.created, [
       {
         file: "/models/fake-net.onnx",
-        options: { executionProviders: ["cpu"], graphOptimizationLevel: "all" },
+        options: {
+          executionProviders: ["cpu"],
+          graphOptimizationLevel: "all",
+          // The arena's growth crashed IS-Net's second run in Electron.
+          enableCpuMemArena: false,
+          enableMemPattern: false,
+        },
       },
     ]);
     assert.equal(segmenter.model, "fake-net");

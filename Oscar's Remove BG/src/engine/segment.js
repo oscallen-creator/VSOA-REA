@@ -68,6 +68,11 @@ export const createSegmenter = async (modelFile, spec, { runtime } = {}) => {
   const session = await ort.InferenceSession.create(modelFile, {
     executionProviders: ["cpu"],
     graphOptimizationLevel: "all",
+    // ONNX Runtime's arena keeps ~1.7 GB for IS-Net; inside an Electron
+    // utility process its growth on the second run crashes the process (exit
+    // code 5). Without it memory stays ~0.6 GB at about the same speed.
+    enableCpuMemArena: false,
+    enableMemPattern: false,
   });
   const square = { width: spec.inputSize, height: spec.inputSize };
   // One run at a time: each run already uses every core.
@@ -82,7 +87,10 @@ export const createSegmenter = async (modelFile, spec, { runtime } = {}) => {
       spec.inputSize,
       spec.inputSize,
     ]);
-    const outputs = await session.run({ [session.inputNames[0]]: input });
+    // IS-Net has 12 outputs; only the first is the mask.
+    const outputs = await session.run({ [session.inputNames[0]]: input }, [
+      session.outputNames[0],
+    ]);
     const prediction = outputs[session.outputNames[0]].data;
     if (prediction.length < square.width * square.height) {
       throw new Error(`Model ${spec.id} returned an unexpected output shape`);

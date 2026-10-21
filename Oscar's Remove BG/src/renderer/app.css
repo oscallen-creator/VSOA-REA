@@ -147,7 +147,9 @@ select:disabled {
   font-weight: 600;
 }
 
+/* Outranks .btn:hover, which would otherwise paint white text on white. */
 .btn.primary:hover:not(:disabled) {
+  background: var(--accent-fill);
   filter: brightness(1.1);
 }
 
