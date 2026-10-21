@@ -18,5 +18,8 @@
   "allowScripts": {
     "onnxruntime-node@1.30.0": true,
     "sharp@0.35.5": true
+  },
+  "devDependencies": {
+    "electron": "44.9.2"
   }
 }
