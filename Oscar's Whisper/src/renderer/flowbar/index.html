@@ -10,16 +10,36 @@
     <link rel="stylesheet" href="./flowbar.css" />
   </head>
   <body>
-    <button
-      id="pill"
-      class="pill"
-      data-status="idle"
-      aria-label="Start dictation"
-    >
-      <span class="dot" aria-hidden="true"></span>
-      <span class="meter" aria-hidden="true"></span>
-      <span class="spinner" aria-hidden="true"></span>
-    </button>
+    <div id="hot" class="hot-area">
+      <div
+        id="pill"
+        class="pill"
+        data-state="resting"
+        role="button"
+        aria-label="Start dictation"
+      >
+        <button
+          class="round cancel"
+          type="button"
+          aria-label="Cancel dictation"
+        >
+          <svg viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M3 3l6 6M9 3l-6 6" />
+          </svg>
+        </button>
+        <svg class="mic" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5" />
+          <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
+        </svg>
+        <span class="wave" aria-hidden="true"></span>
+        <span class="spinner" aria-hidden="true"></span>
+        <button class="round stop" type="button" aria-label="Stop dictation">
+          <svg viewBox="0 0 12 12" aria-hidden="true">
+            <rect x="3" y="3" width="6" height="6" rx="1.5" />
+          </svg>
+        </button>
+      </div>
+    </div>
     <script src="./flowbar.js"></script>
   </body>
 </html>

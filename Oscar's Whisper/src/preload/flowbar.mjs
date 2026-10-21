@@ -7,8 +7,11 @@ const subscribe = (channel, listener) =>
 contextBridge.exposeInMainWorld("flowBar", {
   onState: (listener) => subscribe(Channel.BarState, listener),
   onLevel: (listener) => subscribe(Channel.BarLevel, listener),
+  onMicActive: (listener) => subscribe(Channel.BarMicActive, listener),
   onNotice: (listener) => subscribe(Channel.BarNotice, listener),
-  click: () => ipcRenderer.send(Channel.BarClick),
+  start: () => ipcRenderer.send(Channel.BarStartClicked),
+  stop: () => ipcRenderer.send(Channel.BarStopClicked),
+  cancel: () => ipcRenderer.send(Channel.BarCancelClicked),
   hover: (inside) => ipcRenderer.send(Channel.BarHover, inside),
   reportShape: (report) => ipcRenderer.send(Channel.BarShapeReport, report),
   contextMenu: () => ipcRenderer.send(Channel.BarContextMenu),

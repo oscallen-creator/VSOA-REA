@@ -22,16 +22,18 @@ export const transcribe = async (audio, config) => {
 };
 
 /**
- * Optional model pass over the locally cleaned transcript (punctuation, grammar, formatting).
- * @param {string} text
+ * The main cleanup step: a language model rewrites the raw transcript (punctuation,
+ * capitalization, filler words, false starts), like Wispr's server-side "format" stage.
+ * @param {string} rawTranscript
  * @param {{apiKey: string, cleanupModel: string}} config
- * @returns {Promise<string>}
+ * @returns {Promise<string | null>} formatted text, or null when no model is connected,
+ *   in which case the pipeline falls back to the local cleanup rules.
  */
-export const cleanupWithModel = async (text, config) => {
+export const cleanupWithModel = async (rawTranscript, config) => {
   if (config.apiKey) {
-    // TODO(api-key): send `text` to your language model using `config.apiKey` and
-    // `config.cleanupModel` with an instruction to fix punctuation and remove disfluencies
+    // TODO(api-key): send `rawTranscript` to your language model using `config.apiKey` and
+    // `config.cleanupModel`, with an instruction to fix punctuation and remove disfluencies
     // without changing meaning, and return its reply.
   }
-  return text;
+  return null;
 };

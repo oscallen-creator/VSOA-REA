@@ -7,6 +7,9 @@ export const DICTATION_DEBOUNCE_DELAY_MS = 500;
 export const DICTATION_DURATION_TIMEOUT_MS = 20 * 60_000;
 export const DICTATION_DURATION_WARNING_MS = 19 * 60_000;
 
+/** A dictation that has produced no audio this long after starting is dismissed. */
+export const NO_AUDIO_DISMISS_MS = 5_000;
+
 /** Mono 16 kHz capture, delivered in 640-sample (40 ms) chunks. */
 export const RECORDING_SAMPLE_RATE = 16_000;
 export const RECORDER_CHUNK_SAMPLES = 640;

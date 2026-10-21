@@ -2,6 +2,8 @@
 // Chunks are converted to 16-bit PCM before they leave the renderer.
 
 const SAMPLE_RATE = 16_000;
+/** If the worklet's "done" never arrives after "stop", finish anyway after this long. */
+const STOP_SAFETY_MS = 2_000;
 const bridge = window.recorderBridge;
 let session = null;
 
@@ -38,9 +40,15 @@ const start = async () => {
   });
   source.connect(node);
   node.connect(context.destination);
-  session = { stream, context, source, node, done: null };
+  session = { stream, context, source, node, done: null, heardSound: false };
   node.port.onmessage = ({ data }) => {
     if (data === "done") return session?.done?.();
+    // Microphones often deliver pure digital silence while starting up; skip it until the
+    // first non-zero chunk so the recording starts with real audio.
+    if (session && !session.heardSound) {
+      if (data.samples.every((sample) => sample === 0)) return;
+      session.heardSound = true;
+    }
     bridge.chunk(toPcm16(data.samples));
     bridge.level(data.rms);
   };
@@ -63,7 +71,7 @@ const stop = async () => {
   if (!session) return bridge.done();
   const flushed = new Promise((resolve) => {
     session.done = resolve;
-    setTimeout(resolve, 500);
+    setTimeout(resolve, STOP_SAFETY_MS);
   });
   session.node.port.postMessage("stop");
   await flushed;

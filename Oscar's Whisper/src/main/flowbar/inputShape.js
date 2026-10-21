@@ -68,12 +68,18 @@ export const buildShape = ({ rects, shapeRects }, bounds) => {
   return [...interactive, ...visual].slice(0, MAX_SHAPE_RECTS);
 };
 
+/**
+ * The window ignores the mouse until a real pill shape is applied. An empty shape means
+ * "rectangular", so without this the whole transparent window would swallow clicks at
+ * startup; once shaped, the OS only routes input inside the shape.
+ */
 export class InputShape {
   #window = null;
   #enabled = false;
   #everEnabled = false;
   #rects = [];
   #appliedKey = null;
+  #ignoringMouse = null;
 
   attach(window) {
     this.#window = window;
@@ -81,8 +87,8 @@ export class InputShape {
     this.#everEnabled = false;
     this.#rects = [];
     this.#appliedKey = null;
+    this.#ignoringMouse = null;
     this.#apply([]);
-    window.setIgnoreMouseEvents(true, { forward: true });
   }
 
   setEnabled(enabled) {
@@ -118,8 +124,18 @@ export class InputShape {
     const window = this.#window;
     if (!window || window.isDestroyed()) return;
     const key = rects.map(rectKey).join(";");
-    if (key === this.#appliedKey) return;
-    window.setShape(rects);
-    this.#appliedKey = key;
+    if (key !== this.#appliedKey) {
+      window.setShape(rects);
+      this.#appliedKey = key;
+    }
+    const ignore = !(
+      this.#enabled &&
+      rects === this.#rects &&
+      rects.length > 0
+    );
+    if (ignore !== this.#ignoringMouse) {
+      window.setIgnoreMouseEvents(ignore, { forward: true });
+      this.#ignoringMouse = ignore;
+    }
   }
 }

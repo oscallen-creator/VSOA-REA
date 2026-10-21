@@ -37,6 +37,10 @@ export class RecorderBridge {
     return this.#command("start");
   }
 
+  receivedAudio() {
+    return this.#chunks.length > 0;
+  }
+
   async stop() {
     await this.#command("stop");
     const pcm = Buffer.concat(this.#chunks);

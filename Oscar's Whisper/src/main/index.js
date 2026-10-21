@@ -13,8 +13,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import uiohookModule from "uiohook-napi";
 import { Channel } from "../shared/channels.js";
+import { LEVEL_UPDATE_MS, LevelMeter } from "./audio/levelMeter.js";
 import { RecorderBridge } from "./audio/recorderBridge.js";
 import { loadConfig, describeConfig } from "./config.js";
+import { debug } from "./debug.js";
 import { STALE_KEY_SWEEP_MS } from "./constants.js";
 import { DictationController, Source } from "./dictation/controller.js";
 import { createFlowBarWindow } from "./flowbar/flowBarWindow.js";
@@ -28,6 +30,7 @@ const appRoot = path.resolve(
   "..",
   "..",
 );
+const MODIFIERS = new Set(["ctrl", "win", "alt", "shift"]);
 
 let bar = null;
 let recorderWindow = null;
@@ -60,19 +63,22 @@ const allowMicrophoneOnly = () => {
   );
 };
 
-const startKeyboard = (config, dictation) => {
-  const matcher = new ShortcutMatcher({
+const createKeyboard = (config, getDictation) =>
+  new ShortcutMatcher({
     bindings: { ...defaultBindings(), ...config.shortcuts },
     onActionDown: (action) => {
+      const dictation = getDictation();
       if (action === Action.PushToTalk) dictation.pushToTalkDown();
       else if (action === Action.HandsFree)
         dictation.toggleHandsFree(Source.Keyboard);
       else if (action === Action.Dismiss) dictation.dismiss("escape");
     },
     onActionUp: (action) => {
-      if (action === Action.PushToTalk) dictation.pushToTalkUp();
+      if (action === Action.PushToTalk) getDictation().pushToTalkUp();
     },
   });
+
+const startKeyboardHook = (matcher) => {
   uIOhook.on("keydown", (event) => matcher.press(event.keycode));
   uIOhook.on("keyup", (event) => matcher.release(event.keycode));
   uIOhook.start();
@@ -83,20 +89,58 @@ const startKeyboard = (config, dictation) => {
   });
 };
 
+/** Bar level meter: dB-scaled chunk levels, averaged and sent every 150 ms. */
+const createLevelFeed = () => {
+  const meter = new LevelMeter();
+  let micActive = false;
+  setInterval(() => {
+    const level = meter.drain();
+    if (level !== null) sendToBar(Channel.BarLevel, level);
+  }, LEVEL_UPDATE_MS);
+  return {
+    push(rms) {
+      if (!micActive) {
+        micActive = true;
+        sendToBar(Channel.BarMicActive, true);
+      }
+      meter.push(rms);
+    },
+    reset() {
+      meter.reset();
+      if (micActive) sendToBar(Channel.BarMicActive, false);
+      micActive = false;
+    },
+  };
+};
+
+const fromBar = (event) => event.sender === bar?.window.webContents;
+
 const handleBarInput = (dictation) => {
-  ipcMain.on(Channel.BarClick, (event) => {
-    if (event.sender === bar?.window.webContents)
+  ipcMain.on(Channel.BarStartClicked, (event) => {
+    debug(`bar: start clicked (active=${dictation.isActive})`);
+    if (fromBar(event) && !dictation.isActive)
       dictation.toggleHandsFree(Source.Bar);
   });
-  ipcMain.on(Channel.BarShapeReport, (event, report) =>
-    bar?.inputShape?.applyReport(event.sender, report),
-  );
+  ipcMain.on(Channel.BarStopClicked, (event) => {
+    if (fromBar(event)) void dictation.stop("stop_button");
+  });
+  ipcMain.on(Channel.BarCancelClicked, (event) => {
+    if (fromBar(event)) dictation.dismiss("cancel_button");
+  });
+  ipcMain.on(Channel.BarShapeReport, (event, report) => {
+    const applied = bar?.inputShape?.applyReport(event.sender, report);
+    debug(
+      "bar: shape report",
+      JSON.stringify(report?.rects),
+      `applied=${applied}`,
+    );
+  });
   ipcMain.on(Channel.BarHover, (event, inside) => {
-    if (event.sender !== bar?.window.webContents || bar.inputShape) return;
+    if (!fromBar(event) || bar.inputShape) return;
     bar.window.setIgnoreMouseEvents(!inside, { forward: true });
   });
   ipcMain.on(Channel.BarContextMenu, (event) => {
-    if (event.sender !== bar?.window.webContents) return;
+    if (!fromBar(event)) return;
     Menu.buildFromTemplate([
       { label: "Oscar's Whisper", enabled: false },
       { type: "separator" },
@@ -117,23 +161,32 @@ const main = async () => {
 
   recorderWindow = createRecorderWindow();
   bar = createFlowBarWindow({ appRoot });
+  const levels = createLevelFeed();
   const recorder = new RecorderBridge({
     ipcMain,
     getWindow: () => recorderWindow,
-    onLevel: (rms) => sendToBar(Channel.BarLevel, rms),
+    onLevel: (rms) => levels.push(rms),
   });
-  const pipeline = createPipeline({ config });
-  const dictation = new DictationController({
+  let dictation = null;
+  const keyboard = createKeyboard(config, () => dictation);
+  const pipeline = createPipeline({
+    config,
+    isModifierHeld: () => keyboard.heldKeys.some((key) => MODIFIERS.has(key)),
+  });
+  dictation = new DictationController({
     recorder,
     process: (pcm) => pipeline.run(pcm),
-    onChange: (state) => sendToBar(Channel.BarState, state),
+    onChange: (state) => {
+      if (state.status !== "listening") levels.reset();
+      sendToBar(Channel.BarState, state);
+    },
     onNotice: (notice) => {
       console.log("[oscars-whisper]", notice);
       sendToBar(Channel.BarNotice, notice);
     },
   });
   handleBarInput(dictation);
-  startKeyboard(config, dictation);
+  startKeyboardHook(keyboard);
 };
 
 app.on("window-all-closed", () => {});

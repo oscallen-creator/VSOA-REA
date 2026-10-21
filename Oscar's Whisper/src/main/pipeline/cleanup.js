@@ -1,4 +1,6 @@
-// Minimal local cleanup applied to every raw transcript before the optional model pass.
+// Local fallback cleanup, used only when the cleanup model returned nothing (no API key yet,
+// or a raw-only result). Wispr leaves real cleanup to its server-side model; these rules are
+// this app's own minimal stand-in so pasted text is still readable without one.
 
 const FILLER_WORDS = /\b(?:um+|uh+|erm+|uhm+|hmm+)\b,?\s*/gi;
 

@@ -9,7 +9,11 @@ import { pasteText } from "./paste.js";
 /** Recordings shorter than this are treated as empty. */
 const MIN_AUDIO_MS = 200;
 
-export const createPipeline = ({ config, paste = pasteText }) => {
+export const createPipeline = ({
+  config,
+  paste = pasteText,
+  isModifierHeld = () => false,
+}) => {
   let lastText = "";
   return {
     get lastText() {
@@ -24,10 +28,21 @@ export const createPipeline = ({ config, paste = pasteText }) => {
         { wav, sampleRate: RECORDING_SAMPLE_RATE, durationMs },
         config,
       );
-      const text = await cleanupWithModel(cleanupTranscript(raw), config);
+      // As in Wispr: use the model's formatted text when there is one; the local rules are
+      // only the fallback for a raw transcript.
+      const formatted = await cleanupWithModel(raw, config);
+      const text = formatted?.trim() || cleanupTranscript(raw);
       if (!text) return { pasted: false, reason: "empty_transcript" };
       lastText = text;
-      await paste(text, config);
+      // Wispr adds a trailing space when nothing follows the cursor, so consecutive
+      // dictations don't run together. Without its accessibility helper this app cannot
+      // read the text around the cursor, so it always applies that end-of-text rule.
+      const result = await paste(`${text} `, config, { isModifierHeld });
+      if (!result.pasted) {
+        throw new Error(
+          `Paste failed (${result.error}); the text is on the clipboard`,
+        );
+      }
       return { pasted: true, text };
     },
   };

@@ -1,6 +1,8 @@
 // Turns raw global key presses/releases into action down/up events.
 // Mirrors Wispr's keyboard service: a map of held keys with timestamps, auto-repeat suppression,
 // a periodic stale-key sweep, and exact matching of the held set against the bindings.
+// Physical keys are tracked separately, so holding both Ctrl keys and releasing one does not
+// count as releasing "ctrl".
 
 import { STALE_KEY_MS } from "../constants.js";
 import { comboId, toLogicalKey } from "./keys.js";
@@ -10,6 +12,7 @@ export class ShortcutMatcher {
   #onActionDown;
   #onActionUp;
   #now;
+  /** Physical keycode -> time of its last press or auto-repeat. */
   #held = new Map();
   #active = null;
 
@@ -20,8 +23,9 @@ export class ShortcutMatcher {
     this.#now = now;
   }
 
+  /** Logical names of the keys currently down, sorted and unique. */
   get heldKeys() {
-    return [...this.#held.keys()].sort();
+    return [...this.#logicalHeld()].sort();
   }
 
   get activeAction() {
@@ -29,36 +33,44 @@ export class ShortcutMatcher {
   }
 
   press(keycode) {
-    const key = toLogicalKey(keycode);
-    const repeat = this.#held.has(key);
-    this.#held.set(key, this.#now());
+    const repeat = this.#held.has(keycode);
+    this.#held.set(keycode, this.#now());
     if (repeat) return;
-    const action = this.#bindings[comboId(this.#held.keys())];
+    const keys = this.#logicalHeld();
+    const action = this.#bindings[comboId(keys)];
     if (action && action !== this.#active?.action) {
-      this.#active = { action, keys: new Set(this.#held.keys()) };
+      this.#active = { action, keys };
       this.#onActionDown(action);
     }
   }
 
   release(keycode) {
+    if (!this.#held.delete(keycode)) return;
     const key = toLogicalKey(keycode);
-    if (!this.#held.delete(key)) return;
+    if (this.#logicalHeld().has(key)) return;
     this.#releaseActiveIfBroken(key);
   }
 
   /** Drops keys whose key-up was never seen (e.g. lost while the screen was locked). */
   sweepStaleKeys() {
     const cutoff = this.#now() - STALE_KEY_MS;
-    for (const [key, at] of this.#held) {
-      if (at < cutoff && !this.#active?.keys.has(key)) {
-        this.#held.delete(key);
+    for (const [keycode, at] of this.#held) {
+      if (at < cutoff && !this.#active?.keys.has(toLogicalKey(keycode))) {
+        this.#held.delete(keycode);
       }
     }
   }
 
+  /** Forgets all held keys; an action still held is released first. */
   reset() {
     this.#held.clear();
+    const active = this.#active;
     this.#active = null;
+    if (active) this.#onActionUp(active.action);
+  }
+
+  #logicalHeld() {
+    return new Set([...this.#held.keys()].map(toLogicalKey));
   }
 
   #releaseActiveIfBroken(releasedKey) {

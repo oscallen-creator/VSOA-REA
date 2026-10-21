@@ -9,6 +9,7 @@ import {
   DICTATION_DEBOUNCE_DELAY_MS,
   DICTATION_DURATION_TIMEOUT_MS,
   DICTATION_DURATION_WARNING_MS,
+  NO_AUDIO_DISMISS_MS,
 } from "../constants.js";
 
 export const Status = Object.freeze({
@@ -170,6 +171,11 @@ export class DictationController {
   #armLimitTimers(session) {
     this.#clearLimitTimers();
     this.#limitTimers = [
+      this.#timers.setTimeout(() => {
+        const silent = this.#recorder.receivedAudio?.() === false;
+        if (session === this.#session && this.isActive && silent)
+          this.dismiss("no_audio");
+      }, NO_AUDIO_DISMISS_MS),
       this.#timers.setTimeout(() => {
         if (session === this.#session && this.isActive)
           this.#emitNotice("warning:one_minute_left");

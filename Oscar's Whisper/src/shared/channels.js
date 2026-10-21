@@ -11,9 +11,12 @@ export const Channel = Object.freeze({
   // main -> flow bar
   BarState: "bar:state",
   BarLevel: "bar:level",
+  BarMicActive: "bar:mic-active",
   BarNotice: "bar:notice",
   // flow bar -> main
-  BarClick: "bar:click",
+  BarStartClicked: "bar:start-clicked",
+  BarStopClicked: "bar:stop-clicked",
+  BarCancelClicked: "bar:cancel-clicked",
   BarShapeReport: "bar:shape-report",
   BarHover: "bar:hover",
   BarContextMenu: "bar:context-menu",
