@@ -67,8 +67,10 @@ async function* expand(paths) {
       yield { file, relativePath: name, unreadable: true };
       continue;
     }
+    // Hidden names are skipped silently, dropped directly or found in a folder.
+    if (isHidden(name)) continue;
     if (stats.isDirectory()) {
-      if (!isHidden(name)) yield* walk(file, name);
+      yield* walk(file, name);
     } else if (stats.isFile()) {
       yield { file, relativePath: name, size: stats.size };
     }

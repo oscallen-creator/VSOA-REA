@@ -3,7 +3,8 @@
 // local). Stored as JSON in <userData>/settings.json; unknown or invalid
 // values fall back to the default instead of failing startup.
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const BG_MODES = Object.freeze(["transparent", "color"]);
@@ -96,11 +97,15 @@ export const applySettingsPatch = (current, patch) => {
 
 export const createSettingsStore = ({ file, defaults }) => {
   let current = { ...defaults };
+  // Saves run one at a time so quick successive changes cannot interleave.
+  let saving = Promise.resolve();
 
   const load = async () => {
     try {
       const saved = JSON.parse(await readFile(file, "utf8"));
-      current = { ...defaults, ...sanitizeSettings(saved) };
+      // The same rules as the controls keep a hand-edited shadow/opacity pair
+      // consistent.
+      current = applySettingsPatch(defaults, saved);
     } catch (error) {
       // A missing or corrupt file means defaults; never block startup.
       if (error?.code !== "ENOENT") {
@@ -111,17 +116,28 @@ export const createSettingsStore = ({ file, defaults }) => {
     return current;
   };
 
-  const save = async () => {
+  const save = async (settings) => {
     await mkdir(path.dirname(file), { recursive: true });
-    const temporary = `${file}.${process.pid}.tmp`;
-    await writeFile(temporary, JSON.stringify(current, null, 2));
-    await rename(temporary, file);
+    const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporary, JSON.stringify(settings, null, 2));
+      await rename(temporary, file);
+    } catch (error) {
+      await rm(temporary, { force: true }).catch(() => {});
+      throw error;
+    }
   };
 
-  const update = async (patch) => {
-    current = applySettingsPatch(current, patch);
-    await save();
-    return current;
+  // The in-memory settings change only once they are safely on disk.
+  const update = (patch) => {
+    const task = saving.then(async () => {
+      const next = applySettingsPatch(current, patch);
+      await save(next);
+      current = next;
+      return current;
+    });
+    saving = task.catch(() => {});
+    return task;
   };
 
   return { load, update, get: () => current };

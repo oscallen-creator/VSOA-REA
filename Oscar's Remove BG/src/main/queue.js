@@ -106,9 +106,13 @@ export const createQueue = ({ runJob, getSettings, onChange, onAlert }) => {
   let nextId = 1;
   let run = null;
 
+  const copyRow = (row) => ({
+    ...row,
+    output: row.output && { ...row.output },
+  });
   const snapshot = () => ({
     status,
-    rows: rows.map((row) => ({ ...row })),
+    rows: rows.map(copyRow),
     run: run && { ...run },
   });
   const changed = () => onChange(snapshot());
@@ -120,7 +124,7 @@ export const createQueue = ({ runJob, getSettings, onChange, onAlert }) => {
     const added = entries.map((entry) => newRow(nextId++, entry));
     rows.push(...added);
     changed();
-    return added;
+    return added.map(copyRow);
   };
 
   const remove = (id) => {
@@ -191,7 +195,10 @@ export const createQueue = ({ runJob, getSettings, onChange, onAlert }) => {
     changed();
   };
 
-  const findRow = (id) => rows.find((row) => row.id === id) ?? null;
+  const findRow = (id) => {
+    const row = rows.find((candidate) => candidate.id === id);
+    return row ? copyRow(row) : null;
+  };
 
   return { add, remove, clear, start, cancel, snapshot, knownSources, findRow };
 };
