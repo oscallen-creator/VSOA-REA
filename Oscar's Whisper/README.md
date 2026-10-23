@@ -215,7 +215,9 @@ speech engine package (for example `sherpa-onnx-win-x64`) and the speech model.
 - **macOS:** the config adds `NSMicrophoneUsageDescription` and `LSUIElement` (no
   Dock icon). The `.dmg` is unsigned and was **not built or tested**, so the
   macOS speech engine is untested too. On first open, use right-click →
-  **Open**. Hardened runtime and notarization are not configured.
+  **Open**. Hardened runtime and notarization are not configured. See
+  [MAC_HANDOFF.md](MAC_HANDOFF.md) for the remaining Mac work: Accessibility
+  handling, ad-hoc signing and a test checklist.
 - **Linux:** the packaged app passes the end-to-end test when built unpacked
   (`npx electron-builder --linux dir`). The AppImage wrapper itself was not run.
 
