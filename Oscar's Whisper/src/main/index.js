@@ -34,6 +34,7 @@ const appRoot = path.resolve(
   "..",
 );
 const MODIFIERS = new Set(["ctrl", "win", "alt", "shift"]);
+const ACCESSIBILITY_POLL_MS = 2_000;
 /** The installed app carries the model in its resources folder; development uses models/. */
 const speechModelDir = () =>
   path.join(
@@ -91,12 +92,37 @@ const createKeyboard = (config, getDictation) =>
 const startKeyboardHook = (matcher) => {
   uIOhook.on("keydown", (event) => matcher.press(event.keycode));
   uIOhook.on("keyup", (event) => matcher.release(event.keycode));
-  uIOhook.start();
+  try {
+    uIOhook.start();
+  } catch (error) {
+    // Clicking the bar still dictates without the hook, so report instead of quitting.
+    console.error("[oscars-whisper] keyboard hook failed to start:", error);
+    sendToBar(Channel.BarNotice, `error:${error.message}`);
+    return;
+  }
   const sweep = setInterval(() => matcher.sweepStaleKeys(), STALE_KEY_SWEEP_MS);
   app.on("will-quit", () => {
     clearInterval(sweep);
     uIOhook.stop();
   });
+};
+
+/**
+ * macOS lets the key hook and the Cmd+V keystroke work only once the app is allowed under
+ * System Settings → Privacy & Security → Accessibility. Ask once, then wait instead of quitting.
+ */
+const whenAccessibilityTrusted = async () => {
+  if (process.platform !== "darwin") return;
+  if (systemPreferences.isTrustedAccessibilityClient(true)) return;
+  console.log("[oscars-whisper] waiting for Accessibility permission");
+  await new Promise((resolve) => {
+    const timer = setInterval(() => {
+      if (!systemPreferences.isTrustedAccessibilityClient(false)) return;
+      clearInterval(timer);
+      resolve();
+    }, ACCESSIBILITY_POLL_MS);
+  });
+  console.log("[oscars-whisper] Accessibility permission granted");
 };
 
 /** Starts loading the speech model in the background; failures are reported, then retried on use. */
@@ -237,6 +263,7 @@ const main = async () => {
     },
   });
   handleBarInput(dictation);
+  await whenAccessibilityTrusted();
   startKeyboardHook(keyboard);
 };
 
