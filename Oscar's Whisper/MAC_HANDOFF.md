@@ -1,5 +1,12 @@
 # Oscar's Whisper on macOS: handoff for the next agent
 
+> **Status: B1–B3 done** on the owner's M1 Mac (macOS 15). See
+> [HANDOFF.md](HANDOFF.md) section 2, step 10, for what was changed and checked.
+> One change differs from the plan below: `dist:mac` builds through an
+> apostrophe-free symlink, because electron-builder refuses to sign in a path
+> containing "Oscar's". Still open: start at login, the bar over full-screen apps
+> and on a second display.
+
 You are picking this up on the owner's **Apple Silicon Mac** (M-series). Goal: a
 working, installable macOS build of Oscar's Whisper (`.dmg` → `/Applications`)
 with the same features as the Windows build. The previous agent worked in a Linux

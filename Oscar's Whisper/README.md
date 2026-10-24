@@ -78,6 +78,59 @@ If nothing records, see the microphone note in the next section. The installer
 has been built, and installed under Wine on Linux, but it has not been run on
 real Windows. See [Development](#development).
 
+## Install it as a desktop app (macOS)
+
+For Apple Silicon Macs (M1 and later). Tested on an M1 with macOS 15.
+
+1. **Build the disk image.** You need Node.js 22 or newer and the Xcode Command
+   Line Tools (`git` offers to install them the first time). In Terminal:
+
+   ```bash
+   cd "Oscar's Whisper"
+   npm install
+   npm run dist:mac
+   ```
+
+   The disk image is written to `out/OscarsWhisper-0.1.0-mac-arm64.dmg`, about
+   613 MB because it includes the speech model. electron-builder refuses to sign
+   an app whose output path contains an apostrophe, so `dist:mac` builds through a
+   symlink without one (`$TMPDIR/oscars-whisper`) that points to this folder. The
+   output still lands in `out/`.
+
+2. **Install.** Open the `.dmg` and drag **OscarsWhisper** to **Applications**.
+   The app is ad-hoc signed, not notarized. A `.dmg` you built yourself opens
+   normally. A copy downloaded from the internet needs right-click → **Open** the
+   first time, or `xattr -cr /Applications/OscarsWhisper.app`.
+
+3. **Allow two permissions on first launch.**
+   - **Microphone:** click **Allow** on the prompt.
+   - **Accessibility,** for the hotkeys and the Cmd+V paste: turn on Oscar's
+     Whisper under **System Settings → Privacy & Security → Accessibility**. The
+     app keeps running while it waits, and the hotkeys work within about 2 s of
+     granting. No restart is needed.
+
+   macOS did not ask for Input Monitoring in testing. The signature is ad-hoc, so
+   macOS may tie the grants to that exact build: if the hotkeys stop working after
+   you install a rebuilt app, remove Oscar's Whisper from the Accessibility list
+   and add it again.
+
+Things to know about the installed app:
+
+- **No Dock icon.** The bar is the app. Right-click it for **Start at login** and
+  **Quit**.
+- **Settings.** Use `~/Library/Application Support/Oscar's Whisper/config.json`
+  (see [Settings](#settings)).
+- **Logs.** Quit the app, then start it with logging into a file:
+
+  ```bash
+  open --env OSCARS_WHISPER_DEBUG=1 --stdout ~/oscars-whisper.log --stderr ~/oscars-whisper.log -a OscarsWhisper
+  ```
+
+  Starting `Contents/MacOS/OscarsWhisper` straight from Terminal also works, but
+  then macOS asks for the permissions on Terminal's behalf, not the app's.
+- **Uninstall.** Quit it, move `/Applications/OscarsWhisper.app` to the Trash,
+  and remove it from the Accessibility and Microphone lists.
+
 ## Run it from source (development)
 
 You need Node.js 22 or newer (24 recommended) and Git. In PowerShell:
@@ -94,6 +147,10 @@ Later starts skip that.
 The first run asks for microphone access. If nothing records, open
 **Settings → Privacy & security → Microphone** and turn on
 **Let desktop apps access your microphone**.
+
+On macOS, run the same commands in Terminal. Started from Terminal, macOS asks
+for Microphone and Accessibility on Terminal's behalf (or your editor's), so allow
+them there for development.
 
 ## Use it
 
@@ -170,17 +227,23 @@ and `unbzip2-stream` 1.4.3.
 
 ### Speed and memory
 
-These were measured on Linux (4 cores, a shared machine, best quiet runs) and on
-the Windows engine under Wine. They were not measured on a real PC. Your PC will
-differ, and weaker CPUs are slower.
+These were measured on Linux (4 cores, a shared machine, best quiet runs), on
+the Windows engine under Wine, and on an Apple M1 Mac (8 GB, macOS 15). They were
+not measured on a real Windows PC. Your computer will differ, and weaker CPUs are
+slower.
 
-| What                                | Linux (Electron 44 main process)               | Windows engine under Wine |
-| ----------------------------------- | ---------------------------------------------- | ------------------------- |
-| Model load, in the background       | 2.9–3.3 s                                      | 3.2–6.9 s                 |
-| Transcribing the 7.4 s sample       | 0.60–0.66 s with 4 threads                     | 0.8–0.9 s with 2 threads  |
-| Memory with the model loaded        | about 0.9 GB                                   | 0.9–1.5 GB while running  |
-| Memory, decoding one 30 s piece     | peaks at about 1.1 GB                          | not measured              |
-| Event loop during loading, decoding | tick gaps of about 10–25 ms (stays responsive) | not measured              |
+| What                                | Linux (Electron 44 main process)               | Windows engine under Wine | macOS, Apple M1                           |
+| ----------------------------------- | ---------------------------------------------- | ------------------------- | ----------------------------------------- |
+| Model load, in the background       | 2.9–3.3 s                                      | 3.2–6.9 s                 | 2.0 s in the installed app, 1.8 s in Node |
+| Transcribing the 7.4 s sample       | 0.60–0.66 s with 4 threads                     | 0.8–0.9 s with 2 threads  | 0.28–0.40 s in Node, default threads      |
+| Memory with the model loaded        | about 0.9 GB                                   | 0.9–1.5 GB while running  | 834 MB main process, 837 MB peak          |
+| Memory, decoding one 30 s piece     | peaks at about 1.1 GB                          | not measured              | not measured                              |
+| Event loop during loading, decoding | tick gaps of about 10–25 ms (stays responsive) | not measured              | not measured                              |
+
+The Mac memory figure is the main process's physical footprint, which is what
+Activity Monitor shows; the helper processes add about 0.1 GB. On the Mac, the
+time from releasing the keys to the paste was not timed directly. It is the
+transcription time above plus the 50 ms paste delay.
 
 Noisy Linux runs took up to 3 s for the 7.4 s sample. Earlier runs in a 4-vCPU
 Linux cloud container gave a 24 s recording in about 3.6 s, and in the
@@ -212,12 +275,13 @@ speech engine package (for example `sherpa-onnx-win-x64`) and the speech model.
 | `npm run dist:mac`   | macOS `.dmg` (build it on a Mac) |
 | `npm run dist:linux` | Linux x64 AppImage               |
 
-- **macOS:** the config adds `NSMicrophoneUsageDescription` and `LSUIElement` (no
-  Dock icon). The `.dmg` is unsigned and was **not built or tested**, so the
-  macOS speech engine is untested too. On first open, use right-click →
-  **Open**. Hardened runtime and notarization are not configured. See
-  [MAC_HANDOFF.md](MAC_HANDOFF.md) for the remaining Mac work: Accessibility
-  handling, ad-hoc signing and a test checklist.
+- **macOS:** Apple Silicon only (`--arm64`). See
+  [Install it as a desktop app (macOS)](#install-it-as-a-desktop-app-macos). The
+  config adds `NSMicrophoneUsageDescription` and `LSUIElement` (no Dock icon) and
+  signs ad-hoc (`"identity": "-"`). Hardened runtime is off: with an ad-hoc
+  signature it would reject Electron's frameworks and the speech engine's
+  libraries, and it only matters for notarization, which needs a paid Developer
+  ID.
 - **Linux:** the packaged app passes the end-to-end test when built unpacked
   (`npx electron-builder --linux dir`). The AppImage wrapper itself was not run.
 
@@ -246,8 +310,8 @@ so none of that could be reused. Oscar's Whisper uses its own local model instea
 - Transcription starts after you stop speaking. Wispr streams while you speak.
 - English only.
 - No LLM rewrite of the text.
-- macOS needs Accessibility and Input Monitoring permission for the hotkeys and
-  paste. The Fn-key defaults Wispr uses there are not supported.
+- macOS needs Accessibility permission for the hotkeys and paste. The Fn-key
+  defaults Wispr uses there are not supported.
 
 See [HANDOFF.md](HANDOFF.md) for everything tested, bugs found, and the
 checklist of things still to verify on a real Windows or Mac computer.
@@ -341,10 +405,20 @@ Verified so far:
   around. That is a Wine limitation (Linux requires a permission call that Wine
   does not make), not expected on real Windows; AMX is mainly found on Intel Xeon
   CPUs. Electron's GUI still cannot run under Wine.
-- Not tested: speech with a real microphone, start at login, the macOS `.dmg`, the
-  Linux AppImage wrapper, and the installer's SmartScreen step.
-- Not yet run on real Windows or macOS hardware. That includes the installer and
-  the installed app.
+- On an Apple M1 Mac (macOS 15), with the `.dmg` built there and installed to
+  `/Applications`: `codesign` reports `Signature=adhoc` and
+  `codesign --verify --deep --strict` passes. On first launch the app asked for
+  the microphone, then waited for Accessibility instead of quitting, and the
+  hotkeys started within 2 s of granting it. With a real microphone and voice:
+  hold-to-talk, Ctrl+Option+Space, Esc and the quick-tap rule behave as
+  described, and the text pasted into TextEdit and every other app the owner
+  tried, with the old clipboard text restored. Clicking the bar started
+  hands-free without taking focus from TextEdit.
+- Not tested: start at login, the bar over full-screen apps and on a second
+  display on macOS, the Linux AppImage wrapper, and the installer's SmartScreen
+  step.
+- Not yet run on real Windows hardware. That includes the installer and the
+  installed app.
 
 ## Credits and licenses
 

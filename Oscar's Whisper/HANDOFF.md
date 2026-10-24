@@ -1,9 +1,9 @@
 # Oscar's Whisper: handoff
 
 Everything done so far: what was built, how it was tested, what broke and was
-fixed, and what still needs checking on a real Windows or Mac computer. All
-work happened in a cloud Linux sandbox with no physical screen, microphone or
-keyboard.
+fixed, and what still needs checking on a real Windows or Mac computer. Steps
+1–9 of section 2 happened in a cloud Linux sandbox with no physical screen,
+microphone or keyboard. Step 10 (macOS) was done on the owner's M1 Mac.
 
 For install and everyday use, see [README.md](README.md).
 
@@ -21,7 +21,8 @@ For install and everyday use, see [README.md](README.md).
 | Single instance / start at login | Built. Start at login is not testable here.                                                                                                                                            |
 | Unit tests                       | 142 passing (`npm test`).                                                                                                                                                              |
 | End-to-end test                  | Real speech: all 4 scenarios pass from source and as a packaged Linux app (`scripts/e2e-linux/run.sh`).                                                                                |
-| Real Windows / macOS             | **Not run yet.** See section 7.                                                                                                                                                        |
+| macOS                            | **Verified on an M1 Mac** with the installed `.dmg` and a real microphone (section 2, step 10). Start at login, full-screen apps and a second display are unverified.                 |
+| Real Windows                     | **Not run yet.** See section 7.                                                                                                                                                        |
 
 ## 2. What was done, in order
 
@@ -88,6 +89,33 @@ For install and everyday use, see [README.md](README.md).
    - Wispr Flow streams audio to its own servers while you speak and formats it
      with a server-side LLM. Nothing of that runs in the Wispr client, so it could
      not be reused.
+10. **Made the macOS build work** (on the owner's M1 Mac, macOS 15, Node 26,
+    following [MAC_HANDOFF.md](MAC_HANDOFF.md)).
+    - Accessibility: on first launch, `uIOhook.start()` threw without the
+      permission and `main().catch` quit the app. `index.js` now asks once, polls
+      every 2 s until it is granted, then starts the key hook. A hook that still
+      fails to start is reported on the bar instead of quitting.
+    - Signing: `"identity": "-"` (ad-hoc) and `"hardenedRuntime": false`.
+      `dist:mac` builds arm64 only.
+    - electron-builder refuses to sign when the output path contains an
+      apostrophe (`Invalid output directory: contains unsupported shell-special
+      characters`), and this folder is "Oscar's Whisper". `dist:mac` now
+      symlinks the folder to `$TMPDIR/oscars-whisper` and builds with
+      `--projectDir` there; the output still lands in `out/`.
+    - Checked on the Mac: all 142 unit tests (the real-model tests ran the
+      darwin-arm64 engine); `codesign` shows `Signature=adhoc` and
+      `codesign --verify --deep --strict` passes; the app installed from the
+      `.dmg` waited for Accessibility instead of quitting and started the hotkeys
+      about 2 s after the grant, with no restart. With a real microphone the owner
+      confirmed: bar visible, hold-to-talk pastes with the clipboard restored,
+      clicking the bar starts hands-free without taking focus from TextEdit,
+      Ctrl+Option+Space toggles, Esc cancels, a quick tap pastes nothing, and paste
+      works in every app tried. Measurements are in README "Speed and memory".
+    - AppKit logs `NSWindow does not support nonactivating panel styleMask 0x80`
+      four times when the bar is created. Clicking the bar did not take focus, so
+      it appears harmless.
+    - Not checked: start at login across a logout, the bar over a full-screen app
+      and on a second display, and **Quit** from the right-click menu.
 
 Not available to the analysis:
 
@@ -274,7 +302,7 @@ Highest risk first:
 | 14  | Antivirus or SmartScreen warnings about a global keyboard hook                                                                                                          | Not available                                                                                     | App blocked or quarantined                                      |
 | 15  | A full 20-minute recording (memory, warning, auto-stop on real time)                                                                                                    | Unit-tested with a fake clock only                                                                | Unexpected stop or memory use; about 38 MB of audio is held     |
 | 16  | Hover/expand animation feel and waveform movement with real speech                                                                                                      | Not visible in the sandbox                                                                        | Cosmetic                                                        |
-| 17  | **macOS:** Accessibility and Input Monitoring prompts, the Ctrl+Option hotkeys, the mouse-forwarding click path, panel window behavior                                  | No macOS                                                                                          | Hotkey, bar or paste doesn't work on Mac                        |
+| 17  | **macOS:** done on an M1 (section 2, step 10). Still open: start at login with the ad-hoc signature, the bar over full-screen apps and on a second display                  | Needs a logout, a full-screen app and a second display                                            | App doesn't start at login, or the bar is hidden                |
 | 18  | Real microphone accuracy with your voice, accents and background noise                                                                                                  | Only one recorded English sentence was played through Chromium's fake microphone                  | Wrong or missing words                                          |
 | 19  | Run `OscarsWhisper-Setup-0.1.0.exe`: SmartScreen shows "Windows protected your PC", **More info** → **Run anyway** works, and the install finishes without admin rights | Wine has no SmartScreen; only a silent install (`/S`) was run                                     | Installer blocked or install fails                              |
 | 20  | The installed app starts from the Start menu shortcut and the Desktop shortcut, and hotkeys, microphone and paste work in it                                            | Under Wine it started, then exited after about 8 s, as a bare Electron app does there             | Installed app doesn't start, or exits                           |
@@ -312,8 +340,8 @@ and keep the console output.
 4. Optionally, add an LLM cleanup step later. The local tidy-up rules would stay
    as the default.
 5. Optionally, what remains after packaging: code signing (the Windows installer
-   and the macOS `.dmg` are unsigned), auto-update, and a settings window for
-   hotkeys.
+   is unsigned; the macOS app is only ad-hoc signed, not notarized), auto-update,
+   and a settings window for hotkeys.
 
 Note for future work: sherpa-onnx's `readWave()` cannot be used inside Electron
 ("External buffers are not allowed"). The app does not call it. It passes the
