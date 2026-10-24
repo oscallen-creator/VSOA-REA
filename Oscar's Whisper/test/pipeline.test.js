@@ -55,8 +55,14 @@ describe("createPipeline", () => {
     assert.equal(options.isModifierHeld, h.isModifierHeld);
   });
 
+  test("pastes no trailing space after a spoken new line", async () => {
+    const h = setup({ transcript: "Dear team new line" });
+    await h.pipeline.run(pcmOf(500));
+    assert.equal(h.calls.paste[0][0], "Dear team\n");
+  });
+
   test("reports no speech for empty or filler-only transcripts, without pasting", async () => {
-    for (const transcript of ["", "   ", "uh"]) {
+    for (const transcript of ["", "   ", "uh", "Um."]) {
       const h = setup({ transcript });
       const result = await h.pipeline.run(pcmOf(500));
       assert.deepEqual(result, { pasted: false, reason: "no_speech" });

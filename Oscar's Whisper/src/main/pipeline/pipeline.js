@@ -26,8 +26,10 @@ export const createPipeline = ({
     if (!text) return { pasted: false, reason: "no_speech" };
     // Wispr adds a trailing space when nothing follows the cursor, so consecutive
     // dictations don't run together. Without its accessibility helper this app cannot
-    // read the text around the cursor, so it always applies that end-of-text rule.
-    const result = await paste(`${text} `, config, { isModifierHeld });
+    // read the text around the cursor, so it always applies that end-of-text rule (except
+    // after a spoken "new line").
+    const ending = text.endsWith("\n") ? "" : " ";
+    const result = await paste(text + ending, config, { isModifierHeld });
     if (!result.pasted) {
       throw new Error(
         `Paste failed (${result.error}); the text is on the clipboard`,
