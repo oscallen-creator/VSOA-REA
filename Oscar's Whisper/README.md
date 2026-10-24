@@ -110,9 +110,10 @@ For Apple Silicon Macs (M1 and later). Tested on an M1 with macOS 15.
      granting. No restart is needed.
 
    macOS did not ask for Input Monitoring in testing. The signature is ad-hoc, so
-   macOS may tie the grants to that exact build: if the hotkeys stop working after
-   you install a rebuilt app, remove Oscar's Whisper from the Accessibility list
-   and add it again.
+   macOS ties the Accessibility grant to that exact build. After you install a
+   rebuilt app, it waits for the permission again: select the old Oscar's Whisper
+   entry under Accessibility, remove it with **−**, then turn on the new one. The
+   microphone permission carries over.
 
 Things to know about the installed app:
 
@@ -202,9 +203,22 @@ internet needed after installing. Audio never leaves the computer.
   longer give no text (tested up to 3 s). Whenever nothing is recognized, nothing
   is pasted and the log says `nothing pasted: no_speech`.
 - **Tidy-up.** Simple local rules in
-  [`cleanup.js`](src/main/pipeline/cleanup.js) drop "um", "uh", "erm" and "hmm",
-  fix spacing, capitalize the first letter and change "i" to "I". There is no LLM
-  step.
+  [`cleanup.js`](src/main/pipeline/cleanup.js) run before the paste. There is no
+  LLM step.
+  - **Fillers:** "um", "uh", "erm" and "hmm" are dropped. "Like", "you know" and
+    "I mean" are dropped only where Parakeet set them off with commas, as it does
+    when you pause around them ("It was, like, really good, you know" → "It was
+    really good."). Without the commas they stay, so "I like it" and "Do you know"
+    are kept; a filler said without any pause stays too.
+  - **Repeats:** stutters and false starts of up to three words are removed ("the
+    the meeting", "I want to I want to go"). "had had" and "that that" are kept,
+    and so are repeats with commas between them ("No, no, no").
+  - **Spoken commands:** "new line", "new paragraph", "comma", "question mark",
+    "exclamation point" (or "mark") and "period" (or "full stop"). Pause briefly
+    around a command. "Period" counts only when you pause after it, so "the trial
+    period ended" stays as words. A sentence that really ends in the word
+    "period" loses it. A "new line" at the end pastes no trailing space.
+  - Spacing is fixed, the first letter is capitalized and "i" becomes "I".
 
 ### Getting the model
 
@@ -331,7 +345,7 @@ git sparse-checkout set "Oscar's Whisper"
 ## Development
 
 ```powershell
-npm test   # 142 unit tests: key matcher, state machine, click-through shape, level meter, PCM, chunking, settings, pipeline, transcriber
+npm test   # 177 unit tests: key matcher, state machine, click-through shape, level meter, PCM, chunking, settings, tidy-up, pipeline, transcriber
 ```
 
 Two of the tests run the real model on its sample recording. They skip when the
@@ -374,7 +388,7 @@ Verified so far:
   pasted. A quick tap was discarded. A second launch exited and the next
   dictation pasted once. All of this passes both from source and as a packaged
   Linux app (`OSCARS_WHISPER_BIN`, see [HANDOFF.md](HANDOFF.md) section 5.2).
-- `npm test`: 142 unit tests pass.
+- `npm test`: 177 unit tests pass.
 - The Windows installer built on Linux with electron-builder and Wine 9.0. It was
   about 112 MB before speech-to-text and is about 576 MB with the model. The next
   three checks were run on the earlier 112 MB build; this document does not
