@@ -67,6 +67,11 @@ describe("cleanupTranscript: spoken commands", () => {
     ["Hello, period. How are you? Question mark.", "Hello. How are you?"],
     ["Wait, comma, really? Question mark?", "Wait, really?"],
     ["Is it done? New line. Yes.", "Is it done?\nYes."],
+    // Seen in the app.
+    [
+      "I regranted it accessibility line break. I really like how this has come out.",
+      "I regranted it accessibility\nI really like how this has come out.",
+    ],
     ["Send it to me exclamation point.", "Send it to me!"],
     ["first item new line second item", "First item\nSecond item"],
     ["Dear team new line", "Dear team\n"],

@@ -213,11 +213,11 @@ internet needed after installing. Audio never leaves the computer.
   - **Repeats:** stutters and false starts of up to three words are removed ("the
     the meeting", "I want to I want to go"). "had had" and "that that" are kept,
     and so are repeats with commas between them ("No, no, no").
-  - **Spoken commands:** "new line", "new paragraph", "comma", "question mark",
-    "exclamation point" (or "mark") and "period" (or "full stop"). Pause briefly
-    around a command. "Period" counts only when you pause after it, so "the trial
-    period ended" stays as words. A sentence that really ends in the word
-    "period" loses it. A "new line" at the end pastes no trailing space.
+  - **Spoken commands:** "new line" (or "line break"), "new paragraph", "comma",
+    "question mark", "exclamation point" (or "mark") and "period" (or "full stop").
+    Pause briefly around a command. "Period" counts only when you pause after it,
+    so "the trial period ended" stays as words. A sentence that really ends in the
+    word "period" loses it. A "new line" at the end pastes no trailing space.
   - Spacing is fixed, the first letter is capitalized and "i" becomes "I".
 
 ### Getting the model
@@ -345,7 +345,7 @@ git sparse-checkout set "Oscar's Whisper"
 ## Development
 
 ```powershell
-npm test   # 177 unit tests: key matcher, state machine, click-through shape, level meter, PCM, chunking, settings, tidy-up, pipeline, transcriber
+npm test   # 178 unit tests: key matcher, state machine, click-through shape, level meter, PCM, chunking, settings, tidy-up, pipeline, transcriber
 ```
 
 Two of the tests run the real model on its sample recording. They skip when the
@@ -388,7 +388,7 @@ Verified so far:
   pasted. A quick tap was discarded. A second launch exited and the next
   dictation pasted once. All of this passes both from source and as a packaged
   Linux app (`OSCARS_WHISPER_BIN`, see [HANDOFF.md](HANDOFF.md) section 5.2).
-- `npm test`: 177 unit tests pass.
+- `npm test`: 178 unit tests pass.
 - The Windows installer built on Linux with electron-builder and Wine 9.0. It was
   about 112 MB before speech-to-text and is about 576 MB with the model. The next
   three checks were run on the earlier 112 MB build; this document does not

@@ -34,7 +34,7 @@ const removeFillers = (text) =>
 /** Spoken commands and what they insert. Line breaks go first, so "period" can see one after it. */
 const COMMANDS = [
   ["new paragraph", "\n\n"],
-  ["new line", "\n"],
+  ["(?:new line|line break)", "\n"],
   ["question mark", "?"],
   ["exclamation (?:point|mark)", "!"],
   ["comma", ","],
