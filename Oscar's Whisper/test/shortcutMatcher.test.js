@@ -5,7 +5,10 @@ import {
   Action,
   comboId,
   defaultBindings,
+  effectiveBindings,
+  pushToTalkKeys,
   toLogicalKey,
+  withPushToTalk,
 } from "../src/main/keyboard/keys.js";
 import { STALE_KEY_MS } from "../src/main/constants.js";
 
@@ -296,5 +299,96 @@ describe("stale key sweep and reset", () => {
     assert.deepEqual(matcher.heldKeys, ["ctrl", "win"]);
     release(CtrlRight);
     assert.deepEqual(events, ["down:ptt", "up:ptt"]);
+  });
+});
+
+describe("changing push-to-talk", () => {
+  test("a user binding replaces the default for its action instead of adding to it", () => {
+    assert.deepEqual(effectiveBindings({ "ctrl+shift": "ptt" }, "darwin"), {
+      "alt+ctrl+space": Action.HandsFree,
+      esc: Action.Dismiss,
+      "ctrl+shift": Action.PushToTalk,
+    });
+  });
+
+  test("new push-to-talk keys move hands-free too and keep other shortcuts", () => {
+    const old = { "alt+ctrl": "ptt", "alt+ctrl+space": "popo", esc: "dismiss" };
+    assert.deepEqual(withPushToTalk(old, ["shift", "ctrl"]), {
+      esc: Action.Dismiss,
+      "ctrl+shift": Action.PushToTalk,
+      "ctrl+shift+space": Action.HandsFree,
+    });
+  });
+
+  test("push-to-talk is two or more modifiers, or one right-hand Control, Option or Command", () => {
+    assert.deepEqual(pushToTalkKeys(["ctrl", "shift"]), ["ctrl", "shift"]);
+    assert.deepEqual(pushToTalkKeys(["ctrl", "ralt"]), ["ctrl", "alt"]);
+    assert.deepEqual(pushToTalkKeys(["ralt"]), ["ralt"]);
+    assert.deepEqual(pushToTalkKeys(["rwin"]), ["rwin"]);
+    assert.equal(pushToTalkKeys(["alt"]), null);
+    assert.equal(pushToTalkKeys(["rshift"]), null);
+    assert.equal(pushToTalkKeys(["ctrl", "rctrl"]), null);
+    assert.equal(pushToTalkKeys(["ctrl", "space"]), null);
+    assert.equal(pushToTalkKeys(["ctrl", toLogicalKey(KeyA)]), null);
+  });
+
+  test("Right Option alone can be bound, and Left Option then does nothing", () => {
+    const h = setup(effectiveBindings(withPushToTalk({}, ["ralt"]), "darwin"));
+    h.press(Alt);
+    h.release(Alt);
+    h.press(AltRight);
+    h.press(Space);
+    h.release(Space, AltRight);
+    assert.deepEqual(h.events, ["down:ptt", "down:popo", "up:popo"]);
+  });
+
+  test("recording returns the most keys held at once, after all are released", async () => {
+    const h = setup();
+    const recorded = h.matcher.record();
+    h.press(Ctrl, Shift);
+    h.release(Shift);
+    h.press(Alt);
+    h.release(Ctrl, Alt);
+    assert.deepEqual(await recorded, ["ctrl", "shift"]);
+  });
+
+  test("recording names right-hand modifiers apart", async () => {
+    const h = setup();
+    const recorded = h.matcher.record();
+    h.press(AltRight);
+    h.release(AltRight);
+    assert.deepEqual(await recorded, ["ralt"]);
+  });
+
+  test("no action fires while recording, and bindings work again after setBindings", async () => {
+    const h = setup();
+    const recorded = h.matcher.record();
+    h.press(Ctrl, Win);
+    h.release(Ctrl, Win);
+    assert.deepEqual(await recorded, ["ctrl", "win"]);
+    assert.deepEqual(h.events, []);
+    h.matcher.setBindings({ "ctrl+shift": Action.PushToTalk });
+    h.press(Ctrl, Win);
+    h.release(Ctrl, Win);
+    h.press(Ctrl, Shift);
+    h.release(Shift);
+    assert.deepEqual(h.events, ["down:ptt", "up:ptt"]);
+  });
+
+  test("cancelling, or starting a second recording, resolves the first with no keys", async () => {
+    const h = setup();
+    const first = h.matcher.record();
+    const second = h.matcher.record();
+    assert.deepEqual(await first, []);
+    h.press(Ctrl);
+    h.matcher.cancelRecording();
+    assert.deepEqual(await second, []);
+  });
+
+  test("starting a recording releases a held action", () => {
+    const h = setup();
+    h.press(Ctrl, Win);
+    void h.matcher.record();
+    assert.deepEqual(h.events, ["down:ptt", "up:ptt"]);
   });
 });

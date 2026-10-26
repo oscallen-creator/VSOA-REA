@@ -1,4 +1,4 @@
-// IPC channel names shared by the main process and both renderer windows.
+// IPC channel names shared by the main process and the renderer windows.
 export const Channel = Object.freeze({
   // main -> recorder window
   RecorderCommand: "recorder:command",
@@ -20,4 +20,11 @@ export const Channel = Object.freeze({
   BarShapeReport: "bar:shape-report",
   BarHover: "bar:hover",
   BarContextMenu: "bar:context-menu",
+  // dashboard <-> main
+  DashboardGetState: "dashboard:get-state",
+  DashboardHistory: "dashboard:history",
+  DashboardClearHistory: "dashboard:clear-history",
+  DashboardRecordShortcut: "dashboard:record-shortcut",
+  DashboardHotkeysReady: "dashboard:hotkeys-ready",
+  DashboardOpenAccessibility: "dashboard:open-accessibility",
 });

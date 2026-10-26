@@ -2,7 +2,7 @@
 // the file (for example an API key from an older version) is ignored and never logged. A value
 // of the wrong type is ignored too, with a warning, and the default is used.
 
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const DEFAULTS = Object.freeze({
@@ -50,4 +50,11 @@ export const loadConfig = async ({ userDataDir, warn = console.warn }) => {
     else warn(`[oscars-whisper] ignoring invalid "${key}" in ${file}`);
   }
   return config;
+};
+
+/** Writes new shortcuts into the config file, keeping everything else in it as it was. */
+export const saveShortcuts = async (file, shortcuts) => {
+  const values = await readConfigFile(file);
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, `${JSON.stringify({ ...values, shortcuts }, null, 2)}\n`);
 };

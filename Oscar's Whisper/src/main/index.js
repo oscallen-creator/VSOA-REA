@@ -7,6 +7,7 @@ import {
   ipcMain,
   Menu,
   session,
+  shell,
   systemPreferences,
 } from "electron";
 import path from "node:path";
@@ -15,12 +16,21 @@ import uiohookModule from "uiohook-napi";
 import { Channel } from "../shared/channels.js";
 import { LEVEL_UPDATE_MS, LevelMeter } from "./audio/levelMeter.js";
 import { RecorderBridge } from "./audio/recorderBridge.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, saveShortcuts } from "./config.js";
+import { dashboardContents, openDashboard } from "./dashboard.js";
 import { debug } from "./debug.js";
+import { loadHistory } from "./history.js";
 import { STALE_KEY_SWEEP_MS } from "./constants.js";
 import { DictationController, Source } from "./dictation/controller.js";
 import { createFlowBarWindow } from "./flowbar/flowBarWindow.js";
-import { Action, defaultBindings } from "./keyboard/keys.js";
+import {
+  Action,
+  comboId,
+  effectiveBindings,
+  MODIFIERS,
+  pushToTalkKeys,
+  withPushToTalk,
+} from "./keyboard/keys.js";
 import { ShortcutMatcher } from "./keyboard/shortcutMatcher.js";
 import { pasteText } from "./pipeline/paste.js";
 import { createPipeline } from "./pipeline/pipeline.js";
@@ -33,7 +43,6 @@ const appRoot = path.resolve(
   "..",
   "..",
 );
-const MODIFIERS = new Set(["ctrl", "win", "alt", "shift"]);
 const ACCESSIBILITY_POLL_MS = 2_000;
 /** The installed app carries the model in its resources folder; development uses models/. */
 const speechModelDir = () =>
@@ -45,6 +54,8 @@ const speechModelDir = () =>
 
 let bar = null;
 let recorderWindow = null;
+/** The key hook is running; until then (e.g. no Accessibility permission) hotkeys do nothing. */
+let hotkeysReady = false;
 
 const sendToBar = (channel, value) => {
   if (bar && !bar.window.isDestroyed())
@@ -76,7 +87,7 @@ const allowMicrophoneOnly = () => {
 
 const createKeyboard = (config, getDictation) =>
   new ShortcutMatcher({
-    bindings: { ...defaultBindings(), ...config.shortcuts },
+    bindings: effectiveBindings(config.shortcuts),
     onActionDown: (action) => {
       const dictation = getDictation();
       if (action === Action.PushToTalk) dictation.pushToTalkDown();
@@ -98,13 +109,14 @@ const startKeyboardHook = (matcher) => {
     // Clicking the bar still dictates without the hook, so report instead of quitting.
     console.error("[oscars-whisper] keyboard hook failed to start:", error);
     sendToBar(Channel.BarNotice, `error:${error.message}`);
-    return;
+    return false;
   }
   const sweep = setInterval(() => matcher.sweepStaleKeys(), STALE_KEY_SWEEP_MS);
   app.on("will-quit", () => {
     clearInterval(sweep);
     uIOhook.stop();
   });
+  return true;
 };
 
 /**
@@ -184,8 +196,62 @@ const startAtLoginItems = () => {
 };
 
 const fromBar = (event) => event.sender === bar?.window.webContents;
+const fromDashboard = (event) => event.sender === dashboardContents();
 
-const handleBarInput = (dictation) => {
+const sendToDashboard = (channel, value) =>
+  dashboardContents()?.send(channel, value);
+
+const comboOf = (bindings, action) =>
+  Object.keys(bindings).find((combo) => bindings[combo] === action) ?? null;
+
+const shortcutState = (config) => {
+  const bindings = effectiveBindings(config.shortcuts);
+  return {
+    pushToTalk: comboOf(bindings, Action.PushToTalk),
+    handsFree: comboOf(bindings, Action.HandsFree),
+  };
+};
+
+const handleDashboardInput = ({ config, keyboard, history }) => {
+  ipcMain.handle(Channel.DashboardGetState, (event) =>
+    fromDashboard(event)
+      ? {
+          ...shortcutState(config),
+          history: history.entries,
+          platform: process.platform,
+          hotkeysReady,
+        }
+      : null,
+  );
+  ipcMain.on(Channel.DashboardOpenAccessibility, (event) => {
+    if (fromDashboard(event))
+      shell.openExternal(
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      );
+  });
+  ipcMain.on(Channel.DashboardClearHistory, async (event) => {
+    if (!fromDashboard(event)) return;
+    await history.clear();
+    sendToDashboard(Channel.DashboardHistory, history.entries);
+  });
+  ipcMain.handle(Channel.DashboardRecordShortcut, async (event) => {
+    if (!fromDashboard(event)) return null;
+    // Recording leaves the bindings alone, so cancelling or bad keys keep the old ones.
+    const keys = await keyboard.record();
+    // Esc, a closed window or a second recording cancels.
+    if (keys.length === 0 || keys.includes("esc")) return { cancelled: true };
+    const pushToTalk = pushToTalkKeys(keys);
+    if (!pushToTalk) return { keys };
+    const shortcuts = withPushToTalk(config.shortcuts, pushToTalk);
+    await saveShortcuts(config.file, shortcuts);
+    config.shortcuts = shortcuts;
+    keyboard.setBindings(effectiveBindings(shortcuts));
+    console.log("[oscars-whisper] push-to-talk is now", comboId(pushToTalk));
+    return { saved: true, ...shortcutState(config) };
+  });
+};
+
+const handleBarInput = (dictation, keyboard) => {
   ipcMain.on(Channel.BarStartClicked, (event) => {
     debug(`bar: start clicked (active=${dictation.isActive})`);
     if (fromBar(event) && !dictation.isActive)
@@ -214,6 +280,15 @@ const handleBarInput = (dictation) => {
     Menu.buildFromTemplate([
       { label: "Oscar's Whisper", enabled: false },
       { type: "separator" },
+      {
+        label: "Dashboard…",
+        click: () =>
+          openDashboard({
+            appRoot,
+            onClosed: () => keyboard.cancelRecording(),
+          }),
+      },
+      { type: "separator" },
       ...startAtLoginItems(),
       { label: "Quit", click: () => app.quit() },
     ]).popup({ window: bar.window });
@@ -228,6 +303,9 @@ const main = async () => {
   }
   allowMicrophoneOnly();
   const config = await loadConfig({ userDataDir: app.getPath("userData") });
+  const history = await loadHistory(
+    path.join(app.getPath("userData"), "history.json"),
+  );
   console.log("[oscars-whisper] config", config);
 
   recorderWindow = createRecorderWindow();
@@ -250,8 +328,12 @@ const main = async () => {
     recorder,
     process: async (pcm) => {
       const result = await pipeline.run(pcm);
-      if (!result.pasted)
+      if (!result.pasted) {
         console.log("[oscars-whisper] nothing pasted:", result.reason);
+        return;
+      }
+      await history.add(result.text);
+      sendToDashboard(Channel.DashboardHistory, history.entries);
     },
     onChange: (state) => {
       if (state.status !== "listening") levels.reset();
@@ -262,9 +344,11 @@ const main = async () => {
       sendToBar(Channel.BarNotice, notice);
     },
   });
-  handleBarInput(dictation);
+  handleBarInput(dictation, keyboard);
+  handleDashboardInput({ config, keyboard, history });
   await whenAccessibilityTrusted();
-  startKeyboardHook(keyboard);
+  hotkeysReady = startKeyboardHook(keyboard);
+  sendToDashboard(Channel.DashboardHotkeysReady, hotkeysReady);
 };
 
 app.on("window-all-closed", () => {});

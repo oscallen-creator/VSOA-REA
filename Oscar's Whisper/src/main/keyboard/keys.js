@@ -18,8 +18,22 @@ const KEYCODE_TO_LOGICAL = new Map([
 export const toLogicalKey = (keycode) =>
   KEYCODE_TO_LOGICAL.get(keycode) ?? `key${keycode}`;
 
+/** Right-hand modifiers also have names of their own, so one can be bound alone. */
+const RIGHT_HAND = new Map([
+  [0x0e1d, "rctrl"],
+  [0x0e38, "ralt"],
+  [0x0036, "rshift"],
+  [0x0e5c, "rwin"],
+]);
+const RIGHT_HAND_NAMES = new Set(RIGHT_HAND.values());
+
+export const toSidedKey = (keycode) =>
+  RIGHT_HAND.get(keycode) ?? toLogicalKey(keycode);
+
 /** Canonical binding id: logical keys sorted and joined, e.g. "ctrl+space+win". */
 export const comboId = (keys) => [...new Set(keys)].sort().join("+");
+
+export const MODIFIERS = new Set(["ctrl", "win", "alt", "shift"]);
 
 export const Action = Object.freeze({
   PushToTalk: "ptt",
@@ -44,3 +58,43 @@ export const defaultBindings = (platform = process.platform) =>
         [comboId(["ctrl", "win", "space"])]: Action.HandsFree,
         esc: Action.Dismiss,
       };
+
+/**
+ * The defaults, minus every action the user's shortcuts rebind, plus those shortcuts. So
+ * {"ctrl+shift": "ptt"} replaces the default push-to-talk keys instead of adding a second set.
+ */
+export const effectiveBindings = (shortcuts, platform = process.platform) => {
+  const rebound = new Set(Object.values(shortcuts));
+  const defaults = Object.entries(defaultBindings(platform)).filter(
+    ([, action]) => !rebound.has(action),
+  );
+  return { ...Object.fromEntries(defaults), ...shortcuts };
+};
+
+const SINGLE_KEYS = new Set(["rctrl", "ralt", "rwin"]);
+const unsided = (key) => (RIGHT_HAND_NAMES.has(key) ? key.slice(1) : key);
+
+/**
+ * Turns recorded keys (right-hand modifiers named apart) into push-to-talk keys, or null.
+ * Allowed: one right-hand Control, Option or Command, which shortcuts rarely use, or two or
+ * more modifiers on either side. Holding them never types a character, and ordinary typing
+ * doesn't set them off.
+ */
+export const pushToTalkKeys = (recorded) => {
+  if (recorded.length === 1 && SINGLE_KEYS.has(recorded[0])) return recorded;
+  const keys = [...new Set(recorded.map(unsided))];
+  return keys.length >= 2 && keys.every((key) => MODIFIERS.has(key))
+    ? keys
+    : null;
+};
+
+/** Moves push-to-talk to new keys; hands-free follows as the same keys plus Space. */
+export const withPushToTalk = (shortcuts, keys) => ({
+  ...Object.fromEntries(
+    Object.entries(shortcuts).filter(
+      ([, action]) => action !== Action.PushToTalk && action !== Action.HandsFree,
+    ),
+  ),
+  [comboId(keys)]: Action.PushToTalk,
+  [comboId([...keys, "space"])]: Action.HandsFree,
+});

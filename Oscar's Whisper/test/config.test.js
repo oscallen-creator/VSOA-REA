@@ -1,9 +1,9 @@
 import { after, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { loadConfig } from "../src/main/config.js";
+import { loadConfig, saveShortcuts } from "../src/main/config.js";
 
 const dirs = [];
 const makeUserDataDir = async (contents) => {
@@ -122,5 +122,27 @@ describe("loadConfig", () => {
     const error = await loadConfig({ userDataDir }).catch((caught) => caught);
     assert.match(error.message, /^Could not read /);
     assert.equal(error.cause.code, "EISDIR");
+  });
+});
+
+describe("saveShortcuts", () => {
+  test("replaces only the shortcuts, keeping every other key in the file", async () => {
+    const userDataDir = await makeUserDataDir(
+      JSON.stringify({ pasteDelayMs: 10, apiKey: "old", shortcuts: { a: "ptt" } }),
+    );
+    const file = path.join(userDataDir, "config.json");
+    await saveShortcuts(file, { "ctrl+shift": "ptt" });
+    assert.deepEqual(JSON.parse(await readFile(file, "utf8")), {
+      pasteDelayMs: 10,
+      apiKey: "old",
+      shortcuts: { "ctrl+shift": "ptt" },
+    });
+  });
+
+  test("creates the file when there is none", async () => {
+    const file = path.join(await makeUserDataDir(), "config.json");
+    await saveShortcuts(file, { "ctrl+shift": "ptt" });
+    const config = await loadConfig({ userDataDir: path.dirname(file) });
+    assert.deepEqual(config.shortcuts, { "ctrl+shift": "ptt" });
   });
 });

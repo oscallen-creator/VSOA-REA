@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'"
+    />
+    <title>Oscar's Whisper</title>
+    <link rel="stylesheet" href="./dashboard.css" />
+  </head>
+  <body>
+    <section>
+      <h2>Shortcut</h2>
+      <p id="hotkeys-off" class="warning" hidden>
+        Hotkeys are off until Oscar's Whisper is allowed under Privacy &amp;
+        Security → Accessibility.
+        <button id="open-accessibility" type="button">Open Settings</button>
+      </p>
+      <div class="row">
+        <span class="label">Hold to talk</span>
+        <kbd id="ptt"></kbd>
+        <button id="change" type="button">Change</button>
+      </div>
+      <div class="row">
+        <span class="label">Hands-free</span>
+        <kbd id="handsfree"></kbd>
+      </div>
+      <p id="shortcut-note" class="note" aria-live="polite"></p>
+    </section>
+    <section>
+      <div class="heading">
+        <h2>Recent dictations</h2>
+        <button id="clear" type="button">Clear</button>
+      </div>
+      <ol id="history"></ol>
+      <p id="empty" class="note">Nothing dictated yet.</p>
+    </section>
+    <script src="./dashboard.js"></script>
+  </body>
+</html>
