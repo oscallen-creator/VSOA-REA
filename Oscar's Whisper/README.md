@@ -109,11 +109,27 @@ For Apple Silicon Macs (M1 and later). Tested on an M1 with macOS 15.
      app keeps running while it waits, and the hotkeys work within about 2 s of
      granting. No restart is needed.
 
-   macOS did not ask for Input Monitoring in testing. The signature is ad-hoc, so
-   macOS ties the Accessibility grant to that exact build. After you install a
-   rebuilt app, it waits for the permission again: select the old Oscar's Whisper
-   entry under Accessibility, remove it with **−**, then turn on the new one. The
-   microphone permission carries over.
+   macOS did not ask for Input Monitoring in testing.
+
+   **Keep the permission across rebuilds (optional, once per Mac).** By default the
+   app is signed ad-hoc, and macOS ties the Accessibility grant to that exact
+   build: a rebuilt app waits for the permission again (remove the old entry with
+   **−**, then turn on the new one; the microphone permission carries over). A
+   self-signed certificate avoids that. `npm run dist:mac` uses it automatically
+   when it exists:
+   1. In Keychain Access, choose **Keychain Access → Certificate Assistant →
+      Create a Certificate…**. Name it exactly `OscarsWhisper Dev`, with Identity
+      Type **Self Signed Root** and Certificate Type **Code Signing**, then click
+      **Create**.
+   2. Under the **login** keychain, select the certificate, choose **File → Get
+      Info**, expand **Trust**, and set **Code Signing** to **Always Trust**. Close
+      the window and confirm with your password.
+   3. Rebuild. When macOS asks whether `codesign` may use the key, click **Always
+      Allow**. Grant Accessibility once more for this first certificate-signed
+      build; later rebuilds keep it. If the hotkeys still don't work after you
+      grant it, old entries from ad-hoc builds are in the way: run
+      `tccutil reset Accessibility io.github.oscallen-creator.oscars-whisper`,
+      relaunch the app and grant it again.
 
 Things to know about the installed app:
 
@@ -162,10 +178,21 @@ them there for development.
 | **Ctrl+Win+Space**                       | Toggles hands-free mode                                              |
 | Click the bar                            | Starts hands-free; click the ■ to stop or the ✕ to cancel            |
 | **Esc** while recording                  | Cancels                                                              |
+| Right-click the bar → **Dashboard…**     | Shows recent dictations and lets you change the hotkey               |
 | Right-click the bar → **Start at login** | Starts the app when you sign in (installed app only; off by default) |
 | Right-click the bar → **Quit**           | Quits the app                                                        |
 
 On macOS the hotkeys are **Ctrl+Option** and **Ctrl+Option+Space**.
+
+**Dashboard.** It lists the last 50 pasted dictations, newest first, with the
+time. They are kept in `history.json` next to `config.json`, so they survive a
+restart; they never leave the computer, and **Clear** deletes them. To change the
+hotkey, click **Change**, then press and release the new keys; **Esc** cancels.
+It must be two or more of Control, Option (Alt), Shift and Command (Win), or one
+right-hand Control, Option or Command key on its own, such as Right Option.
+Hands-free becomes the same keys plus Space. The change takes effect at once and
+is saved in `config.json`. If the app does not have Accessibility permission yet,
+the dashboard says so and links to the setting.
 
 **Start at login** is shown only in the installed app on Windows and macOS. In
 development it would register the bare Electron binary, and Electron has no login
@@ -268,6 +295,10 @@ end-to-end test the text was pasted about 1 s after releasing the keys.
 `%APPDATA%\Oscar's Whisper\config.json` reads three keys:
 
 - `shortcuts`: hotkey overrides, for example `"shortcuts": { "ctrl+win": "ptt" }`.
+  The dashboard writes this for you. A shortcut replaces the default for its
+  action (`ptt` hold-to-talk, `popo` hands-free, `dismiss`). Keys are `ctrl`,
+  `alt`, `shift`, `win` (Command on macOS), `space` and `esc`; `rctrl`, `ralt`
+  and `rwin` mean only the right-hand key.
 - `pasteDelayMs`: the wait between writing the clipboard and sending the paste
   keystroke (default 50).
 - `restoreClipboardDelayMs`: the wait after the paste keystroke before restoring
@@ -292,10 +323,11 @@ speech engine package (for example `sherpa-onnx-win-x64`) and the speech model.
 - **macOS:** Apple Silicon only (`--arm64`). See
   [Install it as a desktop app (macOS)](#install-it-as-a-desktop-app-macos). The
   config adds `NSMicrophoneUsageDescription` and `LSUIElement` (no Dock icon) and
-  signs ad-hoc (`"identity": "-"`). Hardened runtime is off: with an ad-hoc
-  signature it would reject Electron's frameworks and the speech engine's
-  libraries, and it only matters for notarization, which needs a paid Developer
-  ID.
+  signs ad-hoc (`"identity": "-"`), or with the `OscarsWhisper Dev` certificate
+  when this Mac has one ([`scripts/dist-mac.sh`](scripts/dist-mac.sh)). Hardened
+  runtime is off: with an ad-hoc signature it would reject Electron's frameworks
+  and the speech engine's libraries, and it only matters for notarization, which
+  needs a paid Developer ID.
 - **Linux:** the packaged app passes the end-to-end test when built unpacked
   (`npx electron-builder --linux dir`). The AppImage wrapper itself was not run.
 
@@ -345,7 +377,7 @@ git sparse-checkout set "Oscar's Whisper"
 ## Development
 
 ```powershell
-npm test   # 178 unit tests: key matcher, state machine, click-through shape, level meter, PCM, chunking, settings, tidy-up, pipeline, transcriber
+npm test   # 193 unit tests: key matcher, state machine, click-through shape, level meter, PCM, chunking, settings, history, tidy-up, pipeline, transcriber
 ```
 
 Two of the tests run the real model on its sample recording. They skip when the
@@ -388,7 +420,7 @@ Verified so far:
   pasted. A quick tap was discarded. A second launch exited and the next
   dictation pasted once. All of this passes both from source and as a packaged
   Linux app (`OSCARS_WHISPER_BIN`, see [HANDOFF.md](HANDOFF.md) section 5.2).
-- `npm test`: 178 unit tests pass.
+- `npm test`: 193 unit tests pass.
 - The Windows installer built on Linux with electron-builder and Wine 9.0. It was
   about 112 MB before speech-to-text and is about 576 MB with the model. The next
   three checks were run on the earlier 112 MB build; this document does not
