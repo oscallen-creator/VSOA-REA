@@ -17,7 +17,7 @@
     "predist:win": "npm run fetch-model",
     "dist:win": "electron-builder --win --x64",
     "predist:mac": "npm run fetch-model",
-    "dist:mac": "ln -sfn \"$PWD\" \"$TMPDIR/oscars-whisper\" && electron-builder --projectDir \"$TMPDIR/oscars-whisper\" --mac --arm64",
+    "dist:mac": "sh scripts/dist-mac.sh",
     "predist:linux": "npm run fetch-model",
     "dist:linux": "electron-builder --linux --x64"
   },
