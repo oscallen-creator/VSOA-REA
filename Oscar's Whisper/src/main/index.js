@@ -158,24 +158,13 @@ const createTranscriber = () => {
 /** Bar level meter: dB-scaled chunk levels, averaged and sent every 150 ms. */
 const createLevelFeed = () => {
   const meter = new LevelMeter();
-  let micActive = false;
   setInterval(() => {
     const level = meter.drain();
     if (level !== null) sendToBar(Channel.BarLevel, level);
   }, LEVEL_UPDATE_MS);
   return {
-    push(rms) {
-      if (!micActive) {
-        micActive = true;
-        sendToBar(Channel.BarMicActive, true);
-      }
-      meter.push(rms);
-    },
-    reset() {
-      meter.reset();
-      if (micActive) sendToBar(Channel.BarMicActive, false);
-      micActive = false;
-    },
+    push: (rms) => meter.push(rms),
+    reset: () => meter.reset(),
   };
 };
 

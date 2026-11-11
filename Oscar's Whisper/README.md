@@ -3,8 +3,8 @@
 A minimal push-to-talk dictation app. Speak anywhere, and the text is pasted
 into whatever app has focus. It covers four features:
 
-- **Always-on button:** a small bar at the bottom of the screen. It stays above
-  other windows and never steals focus.
+- **Always-on button:** a round UM logo at the bottom of the screen that glows
+  while you dictate. It stays above other windows and never steals focus.
 - **Keyboard activation:** global hotkeys for hold-to-talk and hands-free.
 - **Voice dictation:** 16 kHz mono microphone capture, turned into text on your
   computer by NVIDIA's Parakeet speech model. It works offline and adds
@@ -278,6 +278,10 @@ them there for development.
 
 On macOS the hotkeys are **Ctrl+Option** and **Ctrl+Option+Space**.
 
+**The logo shows what it's doing.** It glows maize while it records, brighter as
+you speak. A maize ring spins around it while it transcribes, and it flashes red
+if something goes wrong. Hovering adds a white ring.
+
 **Dashboard.** It lists the last 50 pasted dictations, newest first, with the
 time. They are kept in `history.json` next to `config.json`, so they survive a
 restart; they never leave the computer, and **Clear** deletes them. To change the
@@ -434,7 +438,7 @@ speech engine package (for example `sherpa-onnx-win-x64`) and the speech model.
 
 | Feature       | What REA found in Wispr Flow                                                                                                                                                                                                                                | Oscar's Whisper                                                                                                                                                                                               |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Always-on bar | Transparent, frameless, `alwaysOnTop` "screen-saver" window, 512 px wide, bottom-centred on the cursor's display. On Windows, `setShape` limits clicks to reported pill rectangles (≤128).                                                                  | Same window options and shape logic ([`flowbar/`](src/main/flowbar)). Pill sizes, colors, 10-bar waveform and spinner follow Wispr's states.                                                                  |
+| Always-on bar | Transparent, frameless, `alwaysOnTop` "screen-saver" window, 512 px wide, bottom-centred on the cursor's display. On Windows, `setShape` limits clicks to reported pill rectangles (≤128).                                                                  | Same window options and shape logic ([`flowbar/`](src/main/flowbar)). The same states (resting, hover, recording, hands-free, processing, error) are drawn as the round UM logo instead of Wispr's pill.                                                                  |
 | Hotkeys       | A native helper streams raw key events. Electron matches held keys against bindings. Windows defaults are Ctrl+Win (hold) and Ctrl+Win+Space (hands-free).                                                                                                  | A global hook ([uiohook-napi](https://github.com/SnosMe/uiohook-napi)) feeds the same kind of held-key matcher ([`keyboard/`](src/main/keyboard)).                                                            |
 | State machine | Initializing → Listening → Stopping → Processing. 500 ms debounce, double press locks hands-free, triple press dismisses, quick tap dismissed, 19/20-minute limits, dismiss after 5 s with no audio.                                                        | [`dictation/controller.js`](src/main/dictation/controller.js) implements the same rules.                                                                                                                      |
 | Audio         | A hidden window captures 16 kHz mono with echo cancellation, noise suppression and auto-gain off. A worklet makes 640-sample (40 ms) chunks, converted to Int16 PCM. Leading silence is dropped. Bar level = dB above an adaptive floor, sent every 150 ms. | Same capture settings, chunking, PCM conversion and level meter ([`renderer/recorder/`](src/renderer/recorder), [`audio/`](src/main/audio)). The PCM is then converted to float samples for the speech model. |

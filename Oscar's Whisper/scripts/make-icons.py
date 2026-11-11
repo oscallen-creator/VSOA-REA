@@ -1,5 +1,6 @@
 # Builds every app icon from assets/um-logo.jpg (the UM logo on a flat navy background):
-# a navy circle around the logo, written as icon.png, icon.icns, icon.ico and icons/NxN.png.
+# a navy circle around the logo, written as icon.png, icon.icns, icon.ico, icons/NxN.png and
+# the always-on bar's src/renderer/flowbar/logo.png.
 # Run from the app folder: python3 scripts/make-icons.py   (needs Pillow; icon.icns needs macOS)
 import shutil
 import subprocess
@@ -37,6 +38,10 @@ pad = (SIZE - BODY) // 2
 icon.paste(body, (pad, pad), mask.resize((BODY, BODY), Image.LANCZOS))
 
 icon.save(ASSETS / "icon.png")
+# The always-on bar draws the circle edge to edge, up to 48 px on a 2x screen.
+icon.crop((pad, pad, pad + BODY, pad + BODY)).resize((128, 128), Image.LANCZOS).save(
+    Path("src/renderer/flowbar/logo.png")
+)
 icon.save(ASSETS / "icon.ico", sizes=[(n, n) for n in (16, 24, 32, 48, 64, 128, 256)])
 icons = ASSETS / "icons"
 icons.mkdir(exist_ok=True)
