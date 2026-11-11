@@ -1,4 +1,4 @@
-# Oscar's Whisper
+# U-M Whispr
 
 A minimal push-to-talk dictation app. Speak anywhere, and the text is pasted
 into whatever app has focus. It covers four features:
@@ -20,11 +20,105 @@ decompiled Electron bundle (see [How it mirrors Wispr Flow](#how-it-mirrors-wisp
 The code is an independent rewrite. No Wispr code, assets, keys or endpoints are
 included.
 
+## Give it to a friend (Mac)
+
+### Build the installer
+
+On your Mac, in this folder:
+
+```bash
+npm ci            # once, or after package-lock.json changes
+npm run dist:mac
+```
+
+This writes one file to send: `installer/U-M-Whispr-0.1.0-mac-arm64.dmg`
+(about 600 MB, the speech model included). The first build also downloads the
+model once (661 MB, see [Getting the model](#getting-the-model)). All packaging
+output goes to `installer/`, which is git-ignored: the installer is too big for a
+git commit (GitHub refuses files over 100 MB). Send it by AirDrop or a file link
+(Google Drive, Dropbox, or a GitHub Release).
+
+To change the icon, replace `assets/um-logo.jpg` (the logo on a flat navy
+background) and run `npm run icons` (needs Python with Pillow), then rebuild.
+
+### What your friend does
+
+**They need** a Mac with Apple Silicon (Apple menu → **About This Mac** shows
+"Chip: Apple M…"; Intel Macs are not supported) and about 1.5 GB of free disk
+space. Nothing else to install.
+
+1. **Install.** Open the `.dmg` and drag **U-M Whispr** to **Applications**.
+2. **Open it the first time.** The app is not notarized by Apple, so macOS blocks
+   the first launch of a downloaded copy. Open **U-M Whispr** from
+   **Applications** once, click **Done**, then click **Open Anyway** under
+   **System Settings → Privacy & Security** and confirm. On macOS 15, right-click
+   → **Open** no longer skips this. Or, in Terminal:
+   `xattr -dr com.apple.quarantine "/Applications/U-M Whispr.app"`.
+3. **Allow two permissions.** Click **Allow** for the microphone. Then turn on
+   **U-M Whispr** under **System Settings → Privacy & Security → Accessibility**.
+   The hotkeys start working about 2 s later, with no restart.
+4. **Dictate.** Click into any text box, hold **Ctrl+Option**, speak, and
+   release. The text is pasted. See [Use it](#use-it) for the rest.
+
+**Updating.** Send the new `.dmg`; they drag it over the old app. A rebuilt app
+needs Accessibility again unless you sign with the optional certificate in
+[the macOS install](#install-it-as-a-desktop-app-macos): remove the old entry
+with **−** and turn on the new one.
+
+**Moving from Oscar's Whisper.** U-M Whispr copies the old app's settings and
+dictation history on its first start. Quit the old app (right-click the bar →
+**Quit**), move `/Applications/OscarsWhisper.app` to the Trash, and turn **Start
+at login** on again from the bar's right-click menu if you used it.
+
+### Or: your friend builds it from source
+
+The build downloads the speech model from one fixed commit and checks every
+file's SHA-256, so they get the same code and the same model, byte for byte. No
+account or API key is needed. Send them this page:
+<https://github.com/oscallen-creator/VSOA-REA/tree/main/Oscar%27s%20Whisper>.
+They need about 3 GB of free disk space and about 15 minutes.
+
+1. **Install Node.js.** Download the LTS installer from <https://nodejs.org> and
+   run it. In Terminal, `node -v` must print v22 or newer.
+2. **Install Apple's command line tools,** which include `git`. In Terminal, run
+   `xcode-select --install` and click **Install**. If it says they are already
+   installed, go on.
+3. **Download the code.** This fetches only this folder, not the whole
+   repository:
+
+   ```bash
+   git clone --filter=blob:none --sparse https://github.com/oscallen-creator/VSOA-REA.git
+   cd VSOA-REA
+   git sparse-checkout set "Oscar's Whisper"
+   cd "Oscar's Whisper"
+   ```
+
+4. **Build the app.**
+
+   ```bash
+   npm ci
+   npm run dist:mac
+   ```
+
+   `npm ci` installs the exact versions in `package-lock.json`. `dist:mac`
+   writes `installer/U-M-Whispr-0.1.0-mac-arm64.dmg`.
+
+5. **Install.** Run `open installer/U-M-Whispr-0.1.0-mac-arm64.dmg`, drag
+   **U-M Whispr** to **Applications**, then follow steps 3–4 of
+   [What your friend does](#what-your-friend-does). A `.dmg` built on the same
+   Mac is not blocked on first launch.
+
+**Updating later.** In the same `Oscar's Whisper` folder, run `git pull`, then
+`npm ci` and `npm run dist:mac`, and install the new `.dmg` over the old app.
+
+**Windows friends:** see the next section. The Windows build has not been run on
+real Windows yet.
+
 ## Install it as a desktop app (Windows)
 
-This builds a normal Windows installer, so you can start Oscar's Whisper from the
+This builds a normal Windows installer, so you can start U-M Whispr from the
 Start menu instead of a terminal. If someone gave you a pre-built
-`OscarsWhisper-Setup-0.1.0.exe`, skip step 1.
+`U-M-Whispr-Setup-0.1.0.exe`, skip step 1.
 
 1. **Build the installer.** You need Node.js 22 or newer. In PowerShell:
 
@@ -34,9 +128,9 @@ Start menu instead of a terminal. If someone gave you a pre-built
    npm run dist:win
    ```
 
-   The installer is written to `out\OscarsWhisper-Setup-0.1.0.exe`. It is about
-   576 MB because it includes the speech model. The `out/` folder is git-ignored.
-   The first build downloads the model once (482 MB). `npm run dist:win` does this
+   The installer is written to `installer\U-M-Whispr-Setup-0.1.0.exe`. It is about
+   576 MB because it includes the speech model. The `installer/` folder is git-ignored.
+   The first build downloads the model once (661 MB). `npm run dist:win` does this
    automatically, and later builds reuse it (see
    [Getting the model](#getting-the-model)). The build needs no C++ compiler or
    Visual Studio Build Tools.
@@ -48,10 +142,10 @@ Start menu instead of a terminal. If someone gave you a pre-built
 The installer:
 
 - needs no administrator rights and installs for your user only, into
-  `%LOCALAPPDATA%\Programs\oscars-whisper`;
-- creates "Oscar's Whisper" shortcuts in the Start menu and on the Desktop;
+  `%LOCALAPPDATA%\Programs\um-whispr`;
+- creates "U-M Whispr" shortcuts in the Start menu and on the Desktop;
 - starts the app when it finishes;
-- adds an uninstall entry, "Oscar's Whisper 0.1.0" (publisher "Oscar"), under
+- adds an uninstall entry, "U-M Whispr 0.1.0" (publisher "Oscar"), under
   **Settings → Apps → Installed apps**.
 
 Things to know about the installed app:
@@ -61,12 +155,12 @@ Things to know about the installed app:
 - **One copy at a time.** If you open the app again while it is running, for
   example from the Start menu, the new copy exits at once. A second copy would add
   a second key hook and microphone, so every dictation would be pasted twice.
-- **Settings.** Use `%APPDATA%\Oscar's Whisper\config.json` (see
+- **Settings.** Use `%APPDATA%\U-M Whispr\config.json` (see
   [Settings](#settings)).
 - **Update.** After changing code, rebuild with `npm run dist:win` and run the new
   installer. It updates in place.
 - **Uninstall.** Remove it under **Settings → Apps → Installed apps**.
-  `%APPDATA%\Oscar's Whisper\config.json` is kept.
+  `%APPDATA%\U-M Whispr\config.json` is kept.
 - **Works offline.** After installing, no internet is needed. For the first
   seconds after the app starts, it loads the speech model in the background (about
   3 s where measured). The bar works at once, and a dictation that ends sooner
@@ -91,21 +185,21 @@ For Apple Silicon Macs (M1 and later). Tested on an M1 with macOS 15.
    npm run dist:mac
    ```
 
-   The disk image is written to `out/OscarsWhisper-0.1.0-mac-arm64.dmg`, about
+   The disk image is written to `installer/U-M-Whispr-0.1.0-mac-arm64.dmg`, about
    613 MB because it includes the speech model. electron-builder refuses to sign
    an app whose output path contains an apostrophe, so `dist:mac` builds through a
    symlink without one (`$TMPDIR/oscars-whisper`) that points to this folder. The
-   output still lands in `out/`.
+   output still lands in `installer/`.
 
-2. **Install.** Open the `.dmg` and drag **OscarsWhisper** to **Applications**.
+2. **Install.** Open the `.dmg` and drag **U-M Whispr** to **Applications**.
    The app is ad-hoc signed, not notarized. A `.dmg` you built yourself opens
-   normally. A copy downloaded from the internet needs right-click → **Open** the
-   first time, or `xattr -cr /Applications/OscarsWhisper.app`.
+   normally. A copy that was downloaded or AirDropped is blocked on first launch:
+   see [What your friend does](#what-your-friend-does).
 
 3. **Allow two permissions on first launch.**
    - **Microphone:** click **Allow** on the prompt.
-   - **Accessibility,** for the hotkeys and the Cmd+V paste: turn on Oscar's
-     Whisper under **System Settings → Privacy & Security → Accessibility**. The
+   - **Accessibility,** for the hotkeys and the Cmd+V paste: turn on U-M
+     Whispr under **System Settings → Privacy & Security → Accessibility**. The
      app keeps running while it waits, and the hotkeys work within about 2 s of
      granting. No restart is needed.
 
@@ -135,17 +229,17 @@ Things to know about the installed app:
 
 - **No Dock icon.** The bar is the app. Right-click it for **Start at login** and
   **Quit**.
-- **Settings.** Use `~/Library/Application Support/Oscar's Whisper/config.json`
+- **Settings.** Use `~/Library/Application Support/U-M Whispr/config.json`
   (see [Settings](#settings)).
 - **Logs.** Quit the app, then start it with logging into a file:
 
   ```bash
-  open --env OSCARS_WHISPER_DEBUG=1 --stdout ~/oscars-whisper.log --stderr ~/oscars-whisper.log -a OscarsWhisper
+  open --env OSCARS_WHISPER_DEBUG=1 --stdout ~/oscars-whisper.log --stderr ~/oscars-whisper.log -a "U-M Whispr"
   ```
 
-  Starting `Contents/MacOS/OscarsWhisper` straight from Terminal also works, but
+  Starting `Contents/MacOS/U-M Whispr` straight from Terminal also works, but
   then macOS asks for the permissions on Terminal's behalf, not the app's.
-- **Uninstall.** Quit it, move `/Applications/OscarsWhisper.app` to the Trash,
+- **Uninstall.** Quit it, move `/Applications/U-M Whispr.app` to the Trash,
   and remove it from the Accessibility and Microphone lists.
 
 ## Run it from source (development)
@@ -158,7 +252,7 @@ npm install
 npm start
 ```
 
-The first `npm start` downloads the speech model (482 MB) before the app opens.
+The first `npm start` downloads the speech model (661 MB) before the app opens.
 Later starts skip that.
 
 The first run asks for microphone access. If nothing records, open
@@ -212,7 +306,7 @@ internet needed after installing. Audio never leaves the computer.
   (Apache-2.0), which includes ONNX Runtime. It uses min(4, CPU cores − 1)
   threads, and at least 1.
 - **English only.** Parakeet TDT 0.6B v3 (25 European languages) is a drop-in
-  alternative: change the archive URL, SHA-256 and id in
+  alternative: change the commit URL, file hashes and id in
   [`speechModel.js`](src/main/transcription/speechModel.js). This is not tested.
 - **Loading.** The model loads once, in the background, when the app starts. The
   bar works at once. A dictation that ends before the model is ready waits for
@@ -251,20 +345,25 @@ internet needed after installing. Audio never leaves the computer.
 
 The model is downloaded at build time and never committed. `npm run fetch-model`:
 
-1. downloads a 482 MB `.tar.bz2` from the sherpa-onnx GitHub release `asr-models`
-   (`sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2`);
-2. checks its pinned SHA-256;
-3. unpacks only the needed files into `models/parakeet-tdt-0.6b-v2-int8/`.
+1. downloads `encoder.int8.onnx` (652 MB), the decoder, the joiner, `tokens.txt`
+   and a sample recording, `test_wavs/0.wav`, that the tests use (661 MB in all).
+   They come from one fixed commit, `1ab9323` (2025-08-16), of
+   [`csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8`](https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8),
+   the Hugging Face copy that sherpa-onnx publishes next to its GitHub release;
+2. checks each file's pinned SHA-256, and stops with an error on any mismatch;
+3. puts them in `models/parakeet-tdt-0.6b-v2-int8/`, which is git-ignored.
 
-That folder is git-ignored and takes about 660 MB: `encoder.int8.onnx` (652 MB),
-the decoder, the joiner, `tokens.txt`, and a sample recording, `test_wavs/0.wav`,
-that the tests use.
+The commit and hashes are in
+[`speechModel.js`](src/main/transcription/speechModel.js). Pinning each file,
+rather than an archive, is what makes every build use the same model. The app
+used to download the sherpa-onnx GitHub release archive. On 2026-11-07 that
+archive was replaced by a new export with different files, which broke fresh
+builds with a SHA-256 error.
 
-It runs automatically before `npm start` and every `npm run dist*`, and does
-nothing once the model is in place. In the Linux cloud container, download and
-unpack took 2 min 10 s. Behind an HTTP proxy, set `HTTPS_PROXY` and
-`NODE_USE_ENV_PROXY=1` first. The unpacking uses two devDependencies, `tar` 7.5.22
-and `unbzip2-stream` 1.4.3.
+It runs automatically before `npm start` and every `npm run dist*`. Files that
+already have the right hash are kept, and once the model is in place it does
+nothing. Behind an HTTP proxy, set `HTTPS_PROXY` and `NODE_USE_ENV_PROXY=1`
+first.
 
 ### Speed and memory
 
@@ -292,7 +391,7 @@ end-to-end test the text was pasted about 1 s after releasing the keys.
 
 ### Settings
 
-`%APPDATA%\Oscar's Whisper\config.json` reads three keys:
+`%APPDATA%\U-M Whispr\config.json` reads three keys:
 
 - `shortcuts`: hotkey overrides, for example `"shortcuts": { "ctrl+win": "ptt" }`.
   The dashboard writes this for you. A shortcut replaces the default for its
@@ -310,7 +409,7 @@ used.
 
 ## Other platforms
 
-Build output goes to `out/`. Each platform's build includes only its own native
+Build output goes to `installer/`. Each platform's build includes only its own native
 speech engine package (for example `sherpa-onnx-win-x64`) and the speech model.
 
 | Command              | Builds                           |
@@ -344,7 +443,7 @@ speech engine package (for example `sherpa-onnx-win-x64`) and the speech model.
 | Paste         | The helper writes the clipboard, sends Ctrl+V and restores the clipboard. On failure the text stays on the clipboard. Adds a trailing space at the end of text.                                                                                             | Same sequence, using Electron's clipboard and a simulated Ctrl+V. It also waits for hotkey modifiers to be released first.                                                                                    |
 
 Wispr's speech-to-text and formatting run on its servers, not in the Wispr client,
-so none of that could be reused. Oscar's Whisper uses its own local model instead.
+so none of that could be reused. U-M Whispr uses its own local model instead.
 
 ## Known differences and limits
 
@@ -389,10 +488,14 @@ and clipboard text are never logged.
 Packaging uses electron-builder 26.15.3, a pinned devDependency. Its settings are
 in `package.json` under `"build"`:
 
-- App ID `io.github.oscallen-creator.oscars-whisper` and executable name
-  `OscarsWhisper` (no apostrophe in file names).
-- Icon `assets/icon.png` (1024×1024), rendered from `assets/icon.svg`. Both are
-  original artwork.
+- Product name `U-M Whispr`, which is also the `.app` and `.exe` name. The App ID
+  stays `io.github.oscallen-creator.oscars-whisper` from the app's earlier name,
+  so macOS keeps its Microphone and Accessibility grants.
+- Icons: `assets/icon.png` (1024×1024), `icon.icns` (macOS), `icon.ico`
+  (Windows, 16–256 px) and `assets/icons/NxN.png` (16–1024 px, Linux). All are
+  made from `assets/um-logo.jpg` by `npm run icons`
+  ([`scripts/make-icons.py`](scripts/make-icons.py)), which puts the logo on a
+  navy circle. It needs Python with Pillow; `icon.icns` needs macOS.
 - `"npmRebuild": false`. uiohook-napi and sherpa-onnx ship prebuilt native
   binaries for each platform, so building needs no C++ compiler or Visual Studio
   Build Tools.
@@ -468,7 +571,11 @@ Verified so far:
 
 ## Credits and licenses
 
-Oscar's Whisper ships Electron, uiohook-napi, sherpa-onnx (Apache-2.0, includes
+U-M Whispr ships Electron, uiohook-napi, sherpa-onnx (Apache-2.0, includes
 ONNX Runtime) and the NVIDIA Parakeet TDT 0.6B v2 model (CC-BY-4.0). See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full list. The installed
 app has a copy in its `resources` folder.
+
+The icon uses the University of Michigan block M logo, a trademark of the
+University of Michigan. This app is not affiliated with or endorsed by the
+University.

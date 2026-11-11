@@ -1,6 +1,6 @@
 # Third-party notices
 
-Oscar's Whisper ships the following third-party components. This file is copied
+U-M Whispr ships the following third-party components. This file is copied
 into the installed app's `resources` folder.
 
 | Component                                                                                                  | Used for                        | License                                                               |

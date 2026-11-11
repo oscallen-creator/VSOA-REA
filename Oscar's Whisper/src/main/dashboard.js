@@ -16,7 +16,7 @@ export const openDashboard = ({ appRoot, onClosed }) => {
       height: 600,
       minWidth: 380,
       minHeight: 320,
-      title: "Oscar's Whisper",
+      title: "U-M Whispr",
       show: false,
       webPreferences: {
         preload: path.join(appRoot, "src", "preload", "dashboard.mjs"),

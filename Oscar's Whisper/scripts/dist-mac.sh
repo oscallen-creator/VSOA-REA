@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds the macOS disk image into out/.
+# Builds the macOS installer (a disk image) into installer/.
 # - electron-builder refuses to sign in a path with an apostrophe ("Oscar's Whisper"), so it
 #   builds through a symlink without one.
 # - It signs with the "OscarsWhisper Dev" certificate when this Mac has one, so macOS keeps

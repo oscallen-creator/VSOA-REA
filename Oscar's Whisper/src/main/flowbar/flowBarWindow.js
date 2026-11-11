@@ -55,7 +55,7 @@ export const createFlowBarWindow = ({ appRoot }) => {
     hasShadow: false,
     roundedCorners: false,
     type: isMac ? "panel" : "toolbar",
-    title: "Oscar's Whisper",
+    title: "U-M Whispr",
     frame: false,
     fullscreenable: false,
     maximizable: false,

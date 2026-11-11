@@ -1,4 +1,4 @@
-// Oscar's Whisper main process: always-on bar, global hotkey, recorder window and the
+// U-M Whispr main process: always-on bar, global hotkey, recorder window and the
 // transcribe -> clean up -> paste pipeline.
 
 import {
@@ -10,6 +10,7 @@ import {
   shell,
   systemPreferences,
 } from "electron";
+import { constants, copyFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import uiohookModule from "uiohook-napi";
@@ -278,7 +279,7 @@ const handleBarInput = (dictation, keyboard) => {
   ipcMain.on(Channel.BarContextMenu, (event) => {
     if (!fromBar(event)) return;
     Menu.buildFromTemplate([
-      { label: "Oscar's Whisper", enabled: false },
+      { label: "U-M Whispr", enabled: false },
       { type: "separator" },
       {
         label: "Dashboard…",
@@ -295,8 +296,24 @@ const handleBarInput = (dictation, keyboard) => {
   });
 };
 
+// The app was called "Oscar's Whisper" and kept its settings and history under that name.
+// Copy them across once; an existing file is never overwritten and the old folder is left as is.
+const carryOverOldSettings = () => {
+  const userData = app.getPath("userData");
+  const old = path.join(app.getPath("appData"), "Oscar's Whisper");
+  for (const file of ["config.json", "history.json"]) {
+    try {
+      mkdirSync(userData, { recursive: true });
+      copyFileSync(path.join(old, file), path.join(userData, file), constants.COPYFILE_EXCL);
+    } catch {
+      // Nothing to carry over, or it was carried over already.
+    }
+  }
+};
+
 const main = async () => {
   await app.whenReady();
+  carryOverOldSettings();
   if (process.platform === "darwin") {
     app.dock?.hide();
     await systemPreferences.askForMediaAccess("microphone");

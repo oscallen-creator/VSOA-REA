@@ -5,7 +5,7 @@
 # tkinter, `npm install` and the speech model (`npm run fetch-model`).
 # Usage: bash scripts/e2e-linux/run.sh   (from the "Oscar's Whisper" folder)
 # Set PYTHON to a Python that has tkinter if the default python3 does not.
-# Set OSCARS_WHISPER_BIN to a packaged executable (e.g. out/linux-unpacked/OscarsWhisper) to test
+# Set OSCARS_WHISPER_BIN to a packaged executable (e.g. installer/linux-unpacked/um-whispr) to test
 # the built app instead of the development copy.
 set -u
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

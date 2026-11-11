@@ -1,6 +1,6 @@
 {
-  "name": "oscars-whisper",
-  "productName": "Oscar's Whisper",
+  "name": "um-whispr",
+  "productName": "U-M Whispr",
   "version": "0.1.0",
   "description": "Minimal push-to-talk dictation: always-on bar, global hotkey, voice capture, cleanup, paste.",
   "author": "Oscar",
@@ -19,20 +19,16 @@
     "predist:mac": "npm run fetch-model",
     "dist:mac": "sh scripts/dist-mac.sh",
     "predist:linux": "npm run fetch-model",
-    "dist:linux": "electron-builder --linux --x64"
+    "dist:linux": "electron-builder --linux --x64",
+    "icons": "python3 scripts/make-icons.py"
   },
   "build": {
     "appId": "io.github.oscallen-creator.oscars-whisper",
-    "executableName": "OscarsWhisper",
-    "artifactName": "OscarsWhisper-${version}-${os}-${arch}.${ext}",
+    "artifactName": "U-M-Whispr-${version}-${os}-${arch}.${ext}",
     "directories": {
-      "output": "out",
+      "output": "installer",
       "buildResources": "assets"
     },
-    "files": [
-      "src/**/*",
-      "package.json"
-    ],
     "extraResources": [
       {
         "from": "models/parakeet-tdt-0.6b-v2-int8",
@@ -52,12 +48,14 @@
     "win": {
       "target": "nsis",
       "files": [
+        "src/**/*",
+        "package.json",
         "!node_modules/sherpa-onnx-{darwin,linux}-*/**",
         "!node_modules/sherpa-onnx-win-ia32/**"
       ]
     },
     "nsis": {
-      "artifactName": "OscarsWhisper-Setup-${version}.${ext}",
+      "artifactName": "U-M-Whispr-Setup-${version}.${ext}",
       "oneClick": true,
       "perMachine": false,
       "runAfterFinish": true
@@ -69,16 +67,23 @@
       "category": "public.app-category.productivity",
       "extendInfo": {
         "LSUIElement": true,
-        "NSMicrophoneUsageDescription": "Oscar's Whisper records your voice while you dictate."
+        "NSMicrophoneUsageDescription": "U-M Whispr records your voice while you dictate."
       },
       "files": [
+        "src/**/*",
+        "package.json",
         "!node_modules/sherpa-onnx-{win,linux}-*/**"
       ]
+    },
+    "dmg": {
+      "writeUpdateInfo": false
     },
     "linux": {
       "target": "AppImage",
       "category": "Utility",
       "files": [
+        "src/**/*",
+        "package.json",
         "!node_modules/sherpa-onnx-{win,darwin}-*/**"
       ]
     }
