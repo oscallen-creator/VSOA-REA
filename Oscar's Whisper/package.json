@@ -89,9 +89,7 @@
   },
   "devDependencies": {
     "electron": "44.9.0",
-    "electron-builder": "26.15.3",
-    "tar": "7.5.22",
-    "unbzip2-stream": "1.4.3"
+    "electron-builder": "26.15.3"
   },
   "engines": {
     "node": ">=22"

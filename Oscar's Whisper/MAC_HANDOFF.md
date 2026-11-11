@@ -6,6 +6,10 @@
 > apostrophe-free symlink, because electron-builder refuses to sign in a path
 > containing "Oscar's". Still open: start at login, the bar over full-screen apps
 > and on a second display.
+>
+> This file is the original plan, kept for history. All of it is on `main`; the
+> branch named below is merged. For installing on a Mac today, use README
+> "Give it to a friend (Mac)".
 
 You are picking this up on the owner's **Apple Silicon Mac** (M-series). Goal: a
 working, installable macOS build of Oscar's Whisper (`.dmg` → `/Applications`)
@@ -28,12 +32,11 @@ Read [README.md](README.md) (usage, speech-to-text) and [HANDOFF.md](HANDOFF.md)
 
 ## 1. Get the code and build tools
 
-The repository is public, so no login is needed. All work is on branch
-`claude/epic-pascal-ylwp6i`, which is not merged into `main` yet. This fetches
-only this folder:
+The repository is public, so no login is needed. The work was done on branch
+`claude/epic-pascal-ylwp6i` and is now on `main`. This fetches only this folder:
 
 ```bash
-git clone --filter=blob:none --sparse --branch claude/epic-pascal-ylwp6i https://github.com/oscallen-creator/VSOA-REA.git
+git clone --filter=blob:none --sparse https://github.com/oscallen-creator/VSOA-REA.git
 cd VSOA-REA
 git sparse-checkout set "Oscar's Whisper"
 cd "Oscar's Whisper"
@@ -46,8 +49,7 @@ cd "Oscar's Whisper"
   dependency selected by OS and CPU, and the lockfile already pins it with its
   integrity hash.
 - `npm start` and `npm run dist:mac` first run `npm run fetch-model`. That
-  downloads the 482 MB speech model once and checks its SHA-256. It needs about
-  1.2 GB of free disk while unpacking.
+  downloads the 661 MB speech model once and checks each file's SHA-256.
 - Do **not** commit `models/`, `out/`, `node_modules/` or any `.dmg`. They are
   git-ignored.
 
@@ -180,7 +182,7 @@ bundle assembled on Linux; a build on the Mac should match.
 You can't click System Settings yourself. Ask the owner to grant permissions when
 macOS asks.
 
-1. `npm test`: 142 tests should pass. The two real-model tests need
+1. `npm test`: 193 tests should pass. The two real-model tests need
    `npm run fetch-model` first. They use `readWave` in plain Node, which is fine
    (see note 4).
 2. Dev run with `OSCARS_WHISPER_DEBUG=1 npm start`. When started from Terminal,

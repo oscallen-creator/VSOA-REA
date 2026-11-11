@@ -116,7 +116,8 @@ For install and everyday use, see [README.md](README.md).
       it appears harmless.
     - Not checked: start at login across a logout, the bar over a full-screen app
       and on a second display, and **Quit** from the right-click menu.
-11. **Smarter tidy-up before the paste** (branch `claude/oscars-whisper-paste-cleanup`).
+11. **Smarter tidy-up before the paste** (branch `claude/oscars-whisper-paste-cleanup`,
+    now on `main`).
     - `cleanup.js` now also drops "like", "you know" and "I mean" where Parakeet set
       them off with commas, removes stutters and false starts, and turns spoken
       commands into punctuation and line breaks (README "Tidy-up").
@@ -130,7 +131,8 @@ For install and everyday use, see [README.md](README.md).
       no pause stays, by design.
     - A rebuilt ad-hoc app lost its Accessibility grant (the microphone grant
       carried over); removing the old entry and turning on the new one fixed it.
-12. **Dashboard and hotkey change** (branch `claude/oscars-whisper-dashboard`).
+12. **Dashboard and hotkey change** (branch `claude/oscars-whisper-dashboard`, now
+    on `main`).
     - Right-click the bar → **Dashboard…**: the last 50 pasted dictations
       (`history.js`, `history.json` next to `config.json`, with **Clear**) and
       the push-to-talk keys. **Change** records the most keys held at once
@@ -152,6 +154,27 @@ For install and everyday use, see [README.md](README.md).
       dictations appear in the dashboard, Change saved Right Option, and holding
       Right Option dictates; a rebuilt and reinstalled app started already
       trusted, without waiting for Accessibility.
+13. **Same model for every build, and install steps for friends** (2026-11-09).
+    - A fresh clone failed at `npm run fetch-model` with `Downloaded archive has
+      SHA-256 6fc4426b…, expected 157c157b…`. On 2026-11-07 sherpa-onnx replaced
+      the release archive with a new export of the same NVIDIA weights: the
+      encoder, decoder and joiner bytes differ (encoder 652,282,309 bytes, was
+      652,184,296); `tokens.txt` and the sample are unchanged. Existing
+      `models/` folders were unaffected.
+    - sherpa-onnx's Hugging Face copy keeps its history. Commit `1ab9323`
+      (2025-08-16) holds files whose SHA-256 match the owner's `models/` folder
+      exactly. `speechModel.js` now pins that commit and the hash of each file,
+      and `fetch-model.mjs` downloads the five files directly and checks each
+      one. Files already in place with the right hash are kept, so the owner's
+      folder was not downloaded again. With no archive left to unpack, the
+      `tar` and `unbzip2-stream` devDependencies were removed.
+    - README has a new section, "Give it to a friend (Mac)". The Gatekeeper note
+      now matches macOS 15, where right-click → **Open** no longer opens an
+      app that is not notarized.
+    - Checked: 193 unit tests; a build from a fresh copy of the tracked files
+      (`npm ci`, `npm run dist:mac`) downloaded and verified all five files;
+      after one file was corrupted, `fetch-model` downloaded only that file
+      again.
 
 Not available to the analysis:
 
@@ -194,7 +217,7 @@ Not available to the analysis:
 | `src/main/flowbar/flowBarWindow.js`, `inputShape.js`          | Bar window and click-through shape                                                                                                                                                                                 |
 | `src/main/audio/recorderBridge.js`, `pcm.js`, `levelMeter.js` | Recorder IPC, 16-bit PCM to float samples, waveform levels                                                                                                                                                         |
 | `src/main/pipeline/pipeline.js`, `cleanup.js`, `paste.js`     | PCM → float → transcribe → local tidy-up → paste; `paste` is injected by `index.js`                                                                                                                                |
-| `src/main/transcription/speechModel.js`                       | Model id, pinned download URL, SHA-256, file names, `minInputSeconds`                                                                                                                                              |
+| `src/main/transcription/speechModel.js`                       | Model id, pinned Hugging Face commit URL, per-file SHA-256, file names, `minInputSeconds`                                                                                                                                 |
 | `src/main/transcription/transcriber.js`                       | Owns the recognizer: loads the model once in the background, retries a failed load, skips input under 0.5 s, decodes in pieces                                                                                     |
 | `src/main/transcription/chunking.js`                          | Splits recordings over 30 s at the quietest 100 ms near each limit; keeps the last piece at least 1 s                                                                                                              |
 | `src/preload/*.mjs`                                           | The narrow bridges each window can use                                                                                                                                                                             |
@@ -205,7 +228,7 @@ Not available to the analysis:
 | `src/shared/channels.js`                                      | IPC channel names                                                                                                                                                                                                  |
 | `test/`                                                       | Unit tests (`support/controllerHarness.js` has the fake clock and recorder)                                                                                                                                        |
 | `scripts/e2e-linux/`                                          | End-to-end test (Linux only); plays a speech recording through the fake microphone; can run against a packaged build                                                                                               |
-| `scripts/fetch-model.mjs`                                     | Downloads the speech model, checks its pinned SHA-256, unpacks the needed files into `models/` (git-ignored). Runs before `npm start` and every `npm run dist*`                                                    |
+| `scripts/fetch-model.mjs`                                     | Downloads each model file from the pinned commit into `models/` (git-ignored) and checks its SHA-256. Runs before `npm start` and every `npm run dist*`                                                    |
 | `models/`                                                     | The speech model, about 660 MB (git-ignored; created by `npm run fetch-model`)                                                                                                                                     |
 | `THIRD_PARTY_NOTICES.md`                                      | Licenses of shipped components; also copied into the installed app's `resources` folder                                                                                                                            |
 | `assets/icon.svg`, `assets/icon.png`                          | App icon: original artwork. The PNG is 1024×1024, rendered from the SVG                                                                                                                                            |
@@ -343,7 +366,7 @@ Highest risk first:
 | 14  | Antivirus or SmartScreen warnings about a global keyboard hook                                                                                                          | Not available                                                                                     | App blocked or quarantined                                      |
 | 15  | A full 20-minute recording (memory, warning, auto-stop on real time)                                                                                                    | Unit-tested with a fake clock only                                                                | Unexpected stop or memory use; about 38 MB of audio is held     |
 | 16  | Hover/expand animation feel and waveform movement with real speech                                                                                                      | Not visible in the sandbox                                                                        | Cosmetic                                                        |
-| 17  | **macOS:** done on an M1 (section 2, step 10). Still open: start at login with the ad-hoc signature, the bar over full-screen apps and on a second display                  | Needs a logout, a full-screen app and a second display                                            | App doesn't start at login, or the bar is hidden                |
+| 17  | **macOS:** done on an M1 (section 2, steps 10–12). Still open: start at login, the bar over full-screen apps and on a second display, and a friend's Mac opening a downloaded copy | Needs a logout, a full-screen app and a second display                                            | App doesn't start at login, or the bar is hidden                |
 | 18  | Real microphone accuracy with your voice, accents and background noise                                                                                                  | Only one recorded English sentence was played through Chromium's fake microphone                  | Wrong or missing words                                          |
 | 19  | Run `OscarsWhisper-Setup-0.1.0.exe`: SmartScreen shows "Windows protected your PC", **More info** → **Run anyway** works, and the install finishes without admin rights | Wine has no SmartScreen; only a silent install (`/S`) was run                                     | Installer blocked or install fails                              |
 | 20  | The installed app starts from the Start menu shortcut and the Desktop shortcut, and hotkeys, microphone and paste work in it                                            | Under Wine it started, then exited after about 8 s, as a bare Electron app does there             | Installed app doesn't start, or exits                           |
@@ -366,7 +389,8 @@ and keep the console output.
 - English only.
 - No Fn-key hotkeys on macOS.
 - No Wispr extras: dictionary and snippets, command mode, "press enter",
-  history, notes, meeting recorder, settings window.
+  notes, meeting recorder. The dashboard covers only recent dictations and the
+  push-to-talk keys; other settings are in `config.json`.
 
 ## 9. Suggested next steps
 
@@ -376,13 +400,15 @@ and keep the console output.
 2. Optionally, decode while you speak (streaming) to lower the delay after you
    stop.
 3. Optionally, try a multilingual model. Parakeet TDT 0.6B v3 (25 European
-   languages) is a drop-in alternative: change the archive URL, SHA-256 and id in
+   languages) is a drop-in alternative: change the commit URL, file hashes and id in
    `src/main/transcription/speechModel.js`. It is not tested.
 4. Optionally, add an LLM cleanup step later. The local tidy-up rules would stay
    as the default.
 5. Optionally, what remains after packaging: code signing (the Windows installer
-   is unsigned; the macOS app is only ad-hoc signed, not notarized), auto-update,
-   and a settings window for hotkeys.
+   is unsigned; the macOS app is ad-hoc or self-signed, not notarized, so a
+   downloaded copy needs the Gatekeeper step in README "Give it to a friend"),
+   auto-update, and a prebuilt `.dmg` on a GitHub release so friends can skip
+   building.
 
 Note for future work: sherpa-onnx's `readWave()` cannot be used inside Electron
 ("External buffers are not allowed"). The app does not call it. It passes the
@@ -399,14 +425,13 @@ recorder's samples to the engine directly.
 - Icons are original simple SVGs, and the app icon (`assets/icon.svg`, rendered
   to `assets/icon.png`) is original artwork. Dependencies are Electron,
   [uiohook-napi](https://github.com/SnosMe/uiohook-napi) and `sherpa-onnx-node`
-  1.13.8 (Apache-2.0, includes ONNX Runtime). electron-builder, `tar` and
-  `unbzip2-stream` are devDependencies used only for packaging and for unpacking
-  the model.
+  1.13.8 (Apache-2.0, includes ONNX Runtime). electron-builder is a
+  devDependency used only for packaging.
 - The speech model is NVIDIA Parakeet TDT 0.6B v2 (CC-BY-4.0), in the int8 ONNX
   export published by the sherpa-onnx project. `npm run fetch-model` downloads it
-  from the sherpa-onnx GitHub release `asr-models` at build time and checks the
-  pinned SHA-256 (`157c157bc51155e03e37d2466522a3a737dd9c72bb25f36eb18912964161e1ad`).
-  It is not committed. `THIRD_PARTY_NOTICES.md` lists the licenses.
+  at build time from Hugging Face commit `1ab9323565ddb038682214b292f588070a538ce2`
+  of `csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8` and checks each
+  file's pinned SHA-256 (section 2, step 13). It is not committed. `THIRD_PARTY_NOTICES.md` lists the licenses.
 
 ## Appendix: REA environment work in the same session
 
