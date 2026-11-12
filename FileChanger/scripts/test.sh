@@ -29,4 +29,7 @@ swiftc -Onone -parse-as-library -swift-version 5 -target arm64-apple-macos14.0 \
   -module-name FileChangerTests -num-threads 8 \
   "${SOURCES[@]}" -o "$OUT/FileChangerTests"
 
+# TEST_BIN=path keeps a copy of the runner (scripts/make-dmg.sh ships it as the self-test).
+if [ -n "${TEST_BIN:-}" ]; then cp "$OUT/FileChangerTests" "$TEST_BIN"; fi
+
 FILECHANGER_FIXTURES="$PWD/Tests/Fixtures" "$OUT/FileChangerTests"

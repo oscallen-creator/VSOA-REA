@@ -15,7 +15,7 @@ private func tempDir() throws -> URL {
 }
 
 extension TestSuites {
-    static var shellSuites: [Suite] { [shellModifiers, shellTap, shellLayout, shellActions] }
+    static var shellSuites: [Suite] { [shellModifiers, shellTap, shellLayout, shellActions, shellPlacement] }
 
     static let shellModifiers = Suite(name: "shell.modifiers", tests: [
         ("bit encoding and glyph order (SHL-10, SHL-11)", {
@@ -55,6 +55,13 @@ extension TestSuites {
             try expect(!ShellModifierStore.set(.shift, for: .tools, d))
             try expect(ShellModifierStore.set([.shift, .option], for: .tools, d))
             try expectEqual(ShellModifierStore.mask(for: .tools, d).rawValue, 10)
+        }),
+        ("held modifiers pick the wheel with exactly that mask", {
+            let d = scratchDefaults()
+            try expect(ShellModifierStore.wheel(matching: .shift, d) == .conversion)
+            try expect(ShellModifierStore.wheel(matching: .command, d) == .tools)
+            try expect(ShellModifierStore.wheel(matching: [.shift, .command], d) == nil)
+            try expect(ShellModifierStore.wheel(matching: [], d) == nil)
         }),
     ])
 
@@ -118,6 +125,12 @@ extension TestSuites {
             let items = [("a", "Image"), ("b", "Doc"), ("c", "Image")]
             try expectEqual(shellGroupedOrder(items, group: { $0.1 }).map(\.0), ["a", "c", "b"])
         }),
+        ("drag operation: copy if allowed, else one the source offers", {
+            try expect(shellDragOperation(allowed: [.copy, .move]) == .copy)
+            try expect(shellDragOperation(allowed: .move) == .move)
+            try expect(shellDragOperation(allowed: [.link, .move]) == .move)
+            try expect(shellDragOperation(allowed: []) == [])
+        }),
     ])
 
     static let shellActions = Suite(name: "shell.actions", tests: [
@@ -167,6 +180,38 @@ extension TestSuites {
             let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
             try expect(shellIsOnDesktop(desktop.appendingPathComponent("a.png")))
             try expect(!shellIsOnDesktop(desktop.appendingPathComponent("sub/a.png")))
+        }),
+    ])
+
+    static let shellPlacement = Suite(name: "shell.placement", tests: [
+        ("over a normal window is not desktop; own, layer-25 and alpha-0 windows are", {
+            let r = CGRect(x: 0, y: 0, width: 100, height: 100), pt = CGPoint(x: 50, y: 50)
+            func w(layer: Int = 0, alpha: Double = 1, pid: Int32 = 7) -> ShellDropWindow {
+                ShellDropWindow(bounds: r, layer: layer, alpha: alpha, pid: pid)
+            }
+            try expect(!ShellDropPlacement.isOverDesktop(point: pt, windows: [w()], ownPID: 1))
+            try expect(ShellDropPlacement.isOverDesktop(point: pt, windows: [w(pid: 1)], ownPID: 1))
+            try expect(ShellDropPlacement.isOverDesktop(point: pt, windows: [w(layer: 25)], ownPID: 1))
+            try expect(ShellDropPlacement.isOverDesktop(point: pt, windows: [w(alpha: 0)], ownPID: 1))
+            try expect(ShellDropPlacement.isOverDesktop(point: CGPoint(x: 500, y: 500), windows: [w()], ownPID: 1))
+        }),
+        ("AppKit point flips to top-left coordinates", {
+            let p = ShellDropPlacement.topLeft(CGPoint(x: 10, y: 100), primaryHeight: 900)
+            try expectEqual(p.x, 10)
+            try expectEqual(p.y, 800)
+        }),
+        ("moveToDesktop renames on clash and leaves desktop files alone", {
+            let desktop = try tempDir(), src = try tempDir()
+            try Data("old".utf8).write(to: desktop.appendingPathComponent("out.png"))
+            let f = src.appendingPathComponent("out.png"); try Data("new".utf8).write(to: f)
+            let moved = try ShellDropPlacement.moveToDesktop(f, desktop: desktop)
+            try expectEqual(moved.lastPathComponent, "out 2.png")
+            try expect(!FileManager.default.fileExists(atPath: f.path))
+            let folder = src.appendingPathComponent("pages"); try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try expectEqual(try ShellDropPlacement.moveToDesktop(folder, desktop: desktop).lastPathComponent, "pages")
+            let stay = desktop.appendingPathComponent("out.png")
+            try expectEqual(try ShellDropPlacement.moveToDesktop(stay, desktop: desktop).path, stay.path)
+            try expect(FileManager.default.fileExists(atPath: stay.path))
         }),
     ])
 }

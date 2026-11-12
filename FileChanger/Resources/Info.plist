@@ -28,6 +28,8 @@
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>FileChanger places converted files on the Desktop where you drop them.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>FileChanger, an independent file converter.</string>
 	<key>NSPrincipalClass</key>

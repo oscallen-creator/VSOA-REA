@@ -44,18 +44,29 @@ final class ShellDragMonitor {
     private func handle(_ e: NSEvent) {
         switch e.type {
         case .leftMouseDown:
+            if ShellFan.shared.clickMode { ShellFan.shared.dismiss() }   // global monitors only see clicks outside our windows
             pressChangeCount = NSPasteboard(name: .drag).changeCount
             files = []
             tap.reset()
         case .leftMouseDragged:
-            if files.isEmpty { files = fileDragContents() }
+            if files.isEmpty {
+                files = fileDragContents()
+                // Modifier already held when the drag began: no tap can happen, so open its wheel now.
+                if !files.isEmpty, let wheel = ShellModifierStore.wheel(matching: ShellModifierMask(flags: e.modifierFlags)) {
+                    ShellFan.shared.show(wheel, files: files, at: NSEvent.mouseLocation)
+                }
+            }
+            // The panel may get no dragging callbacks from some sources, so drive the highlight from here too.
+            if !files.isEmpty { ShellFan.shared.hover(atScreen: NSEvent.mouseLocation) }
         case .leftMouseUp:
             files = []
             tap.reset()
             // The release may be the drop onto a petal; give that a moment to land before cleaning up.
             if ShellFan.shared.isVisible {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    if !ShellDragMonitor.shared.isDraggingFiles { ShellFan.shared.dismiss() }
+                    guard !ShellDragMonitor.shared.isDraggingFiles else { return }
+                    // Released on the wheel without a drop (or no dragging callbacks at all): keep it as a click menu.
+                    if !ShellFan.shared.keepAsClickMenu(at: NSEvent.mouseLocation) { ShellFan.shared.dismiss() }
                 }
             }
         case .flagsChanged:
@@ -64,7 +75,7 @@ final class ShellDragMonitor {
             guard isDraggingFiles else { tap.reset(); return }
             let mask = ShellModifierMask(flags: e.modifierFlags.intersection(.deviceIndependentFlagsMask))
             guard let tapped = tap.flagsChanged(mask, at: e.timestamp) else { return }
-            if let wheel = ShellModifierStore.masks().first(where: { $0.value == tapped })?.key {
+            if let wheel = ShellModifierStore.wheel(matching: tapped) {
                 ShellFan.shared.toggle(wheel, files: files, at: NSEvent.mouseLocation)
             }
         case .keyDown:

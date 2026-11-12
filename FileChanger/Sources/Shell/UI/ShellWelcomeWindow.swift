@@ -84,10 +84,10 @@ struct WelcomeView: View {
             }
             Spacer()
             if page == .login {
-                Button("Finish setup") { finish() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                Button { finish() } label: { Text("Finish setup").foregroundStyle(Brand.onAccent) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             } else {
                 if page == .practice { Button("Skip") { go(1) } }
-                Button("Continue") { go(1) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                Button { go(1) } label: { Text("Continue").foregroundStyle(Brand.onAccent) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             }
         }
         .padding(16)
@@ -99,7 +99,7 @@ struct WelcomeView: View {
 
     private var intro: some View {
         VStack(spacing: 14) {
-            Image(systemName: "circle.hexagongrid.fill").font(.system(size: 64)).foregroundStyle(Brand.accent)
+            Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 96, height: 96)
             Text("Welcome to FileChanger").font(.largeTitle.bold())
             Text("Convert files, use quick tools and run file actions without opening an app.")
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -177,7 +177,7 @@ struct WelcomePractice: View {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("Sample photo.png")
         if !FileManager.default.fileExists(atPath: url.path) {
             let img = NSImage(size: NSSize(width: 96, height: 64), flipped: false) { r in
-                NSGradient(colors: [NSColor.systemOrange, NSColor.systemPink])?.draw(in: r, angle: 20); return true
+                NSGradient(colors: [Brand.nsAccent, NSColor(srgbRed: 0.18, green: 0.42, blue: 0.1, alpha: 1)])?.draw(in: r, angle: 20); return true
             }
             if let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let png = rep.representation(using: .png, properties: [:]) {
                 try? png.write(to: url)
@@ -219,7 +219,7 @@ struct WelcomePractice: View {
     private var sample: some View {
         VStack(spacing: 4) {
             RoundedRectangle(cornerRadius: 8)
-                .fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(LinearGradient(colors: [Brand.accent, Color(red: 0.18, green: 0.42, blue: 0.1)], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 96, height: 64)
             Text("Sample photo.png").font(.caption)
             Text("2.4 MB").font(.caption2).foregroundStyle(.secondary)
@@ -271,7 +271,7 @@ private struct PracticePetal: View {
                 .contentShape(shape)
                 .onTapGesture(perform: done)
                 .onDrop(of: [.fileURL, .item], isTargeted: $hot) { _ in done(); return true }
-            Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(hot ? .white : .primary)
+            Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(hot ? Brand.onAccent : .primary)
                 .offset(x: offset.x, y: offset.y).allowsHitTesting(false)
         }
     }

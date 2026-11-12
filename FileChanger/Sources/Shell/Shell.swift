@@ -62,29 +62,11 @@ final class ShellMenuBar: NSObject, NSMenuDelegate {
         item.isVisible = UserDefaults.standard.bool(forKey: ShellSettings.showsMenuBarIcon)
         let busy = !ShellTasks.active.isEmpty
         let image = busy ? NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "FileChanger is working")
-                         : Self.wheelIcon()
+                         : NSImage(named: "MenuBarIcon")   // the lizard, drawn by scripts/make-icon.swift
         image?.isTemplate = true
         item.button?.image = image
         item.button?.toolTip = busy ? "FileChanger is working" : "FileChanger is ready"
         item.button?.setAccessibilityLabel(busy ? "FileChanger is working" : "FileChanger is ready")
-    }
-
-    /// Template icon: a ring of six petals, drawn here (no borrowed artwork).
-    static func wheelIcon() -> NSImage {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
-            let c = NSPoint(x: rect.midX, y: rect.midY)
-            NSColor.black.setFill()
-            for i in 0..<6 {
-                let a0 = CGFloat(i) * 60 + 4, a1 = CGFloat(i + 1) * 60 - 4
-                let p = NSBezierPath()
-                p.appendArc(withCenter: c, radius: 8.4, startAngle: a0, endAngle: a1)
-                p.appendArc(withCenter: c, radius: 3.6, startAngle: a1, endAngle: a0, clockwise: true)
-                p.close()
-                p.fill()
-            }
-            return true
-        }
-        return image
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
