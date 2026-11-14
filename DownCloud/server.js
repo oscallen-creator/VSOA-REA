@@ -8,6 +8,7 @@ const zlib = require('node:zlib');
 const { Readable } = require('node:stream');
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const ASSETS = { '/hero.webp': 'image/webp', '/tracks.webp': 'image/webp', '/tile-small.png': 'image/png', '/tile-big.png': 'image/png' };
 const HOSTS = new Set(['soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com', 'on.soundcloud.com']);
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 const DIR = path.join(os.tmpdir(), 'downcloud-jobs');
@@ -74,6 +75,17 @@ const zipEntries = (entries) => Buffer.concat([...zipChunks(entries)]);
 function safeFilename(name) {
   const s = String(name ?? '').replace(/[\u0000-\u001f\u007f]/g, '').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim().replace(/^\.+/, '').slice(0, 150);
   return s || 'track';
+}
+
+// Names inside one zip must differ (case-insensitively, like the Mac's disk): repeats get " (2)", " (3)".
+function uniqueNames(names) {
+  const used = new Set();
+  return names.map((n) => {
+    let s = n;
+    for (let i = 2; used.has(s.toLowerCase()); i++) s = `${n} (${i})`;
+    used.add(s.toLowerCase());
+    return s;
+  });
 }
 
 // ---- soundcloud ----
@@ -234,12 +246,9 @@ async function handle(req, res) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return res.end(fs.readFileSync(path.join(__dirname, 'index.html')));
   }
-  if (u.pathname === '/bg.jpg') {
-    try {
-      const img = fs.readFileSync(path.join(__dirname, 'bg.jpg'));
-      res.writeHead(200, { 'Content-Type': 'image/jpeg' });
-      return res.end(img);
-    } catch { return send(res, 404, { success: false, message: 'Not found.' }); }
+  if (ASSETS[u.pathname]) {
+    res.writeHead(200, { 'Content-Type': ASSETS[u.pathname] });
+    return res.end(fs.readFileSync(path.join(__dirname, u.pathname.slice(1))));
   }
   if (u.pathname === '/api/download') {
     const url = u.searchParams.get('url') || '';
@@ -252,11 +261,8 @@ async function handle(req, res) {
       else if (item.kind === 'playlist') pl = await playlistTracks(item);
       else throw new Error(`That link is a ${item.kind}; only tracks and playlists are supported.`);
     } catch (e) { return send(res, 400, { success: false, message: e.message }); }
-    if (!pl) {
-      const job = startJob(item);
-      const title = item.title || 'track';
-      return send(res, 200, { success: true, kind: 'track', id: job.id, title, artist: artistOf(item), info: { image: imageOf(item), title }, progress_url: '/api/progress?id=' + job.id });
-    }
+    const row = (t, job) => ({ title: t.title || 'track', artist: artistOf(t), duration: t.duration, progress_url: '/api/progress?id=' + job.id });
+    if (!pl) return send(res, 200, { success: true, kind: 'track', tracks: [row(item, startJob(item))] });
     const id = crypto.randomBytes(12).toString('base64url');
     const title = item.title || 'playlist';
     const total = pl.tracks.length;
@@ -265,9 +271,7 @@ async function handle(req, res) {
     setTimeout(() => playlists.delete(id), 60 * 60 * 1000).unref();
     console.log(`playlist ${id}: ${total} tracks, ${pl.full} full from resolve, ${pl.stubs} stubs`);
     return send(res, 200, {
-      success: true, kind: 'playlist', id, title, track_count: total, info: { image: imageOf(item), title },
-      tracks: pl.tracks.map((t, i) => ({ id: list[i].id, title: t.title || 'track', artist: artistOf(t), image: imageOf(t), progress_url: '/api/progress?id=' + list[i].id })),
-      zip_url: '/zip/' + id,
+      success: true, kind: 'playlist', title, tracks: pl.tracks.map((t, i) => row(t, list[i])), zip_url: '/zip/' + id,
     });
   }
   if (u.pathname === '/api/progress') {
@@ -292,12 +296,10 @@ async function handle(req, res) {
     const js = pl.jobs.map((id) => jobs.get(id));
     const done = js.filter((j) => j && j.progress >= 1000).length;
     if (done < js.length) return send(res, 409, { success: false, message: `Still converting (${done}/${js.length})` });
-    const pad = String(js.length).length < 2 ? 2 : String(js.length).length;
+    const ok = js.filter((j) => j.text === 'Finished');
+    const names = uniqueNames(ok.map((j) => safeFilename(j.name)));
     function* files() {
-      for (let i = 0; i < js.length; i++) {
-        if (js[i].text !== 'Finished') continue;
-        yield { name: `${String(i + 1).padStart(pad, '0')} - ${safeFilename(js[i].name)}.mp3`, data: fs.readFileSync(js[i].file) };
-      }
+      for (let i = 0; i < ok.length; i++) yield { name: names[i] + '.mp3', data: fs.readFileSync(ok[i].file) };
     }
     res.writeHead(200, {
       'Content-Type': 'application/zip',
@@ -322,4 +324,4 @@ if (require.main === module) {
   start(process.env.PORT || 8787).then((p) => console.log(`http://localhost:${p}`), (e) => { console.error(e.message + ' (brew install ffmpeg)'); process.exit(1); });
 }
 
-module.exports = { start, isAllowedSoundCloudUrl, pickTranscoding, safeFilename, zipEntries };
+module.exports = { start, isAllowedSoundCloudUrl, pickTranscoding, safeFilename, uniqueNames, zipEntries };

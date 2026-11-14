@@ -4,8 +4,8 @@ Paste a SoundCloud track or playlist link and get MP3s with cover art and tags. 
 
 ## Download
 
-- Mac (Apple Silicon): https://github.com/oscallen-creator/VSOA-REA/releases/download/downcloud-v1.0.0/DownCloud-Mac.dmg
-- Windows: https://github.com/oscallen-creator/VSOA-REA/releases/download/downcloud-v1.0.0/DownCloud-Windows.exe
+- Mac (Apple Silicon): https://github.com/oscallen-creator/VSOA-REA/releases/download/downcloud-v1.1.0/DownCloud-Mac.dmg
+- Windows: https://github.com/oscallen-creator/VSOA-REA/releases/download/downcloud-v1.1.0/DownCloud-Windows.exe
 - All versions: https://github.com/oscallen-creator/VSOA-REA/releases?q=downcloud
 
 ## First launch

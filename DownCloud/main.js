@@ -22,14 +22,15 @@ app.whenReady().then(async () => {
   }
   const origin = `http://127.0.0.1:${port}`;
 
-  // Quarter of the work area: half the width times half the height.
-  const { width: w, height: h } = screen.getPrimaryDisplay().workAreaSize;
-  const width = Math.round(w / 2), height = Math.round(h / 2);
+  // Tall window shaped like the artwork (906 x 1735), so the first page fills it exactly; resizing keeps the shape.
+  const ART = 906 / 1735;
+  const height = Math.round(screen.getPrimaryDisplay().workAreaSize.height * 0.9);
   const win = new BrowserWindow({
-    width, height, maxWidth: width, maxHeight: height, minWidth: 480, minHeight: 360, center: true,
-    title: 'DownCloud', backgroundColor: '#111', autoHideMenuBar: true, show: false,
+    width: Math.round(height * ART), height, useContentSize: true, minWidth: 320, minHeight: Math.round(320 / ART), center: true,
+    title: 'DownCloud', backgroundColor: '#faf2e7', autoHideMenuBar: true, show: false,
     webPreferences: { sandbox: true },
   });
+  win.setAspectRatio(ART);
   win.once('ready-to-show', () => win.show());
 
   const external = (url) => { if (/^https?:/.test(url)) shell.openExternal(url); };

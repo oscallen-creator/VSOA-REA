@@ -3,90 +3,92 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SoundCloud to MP3</title>
+<title>DownCloud</title>
 <style>
-:root { color-scheme: dark; --fg:#f3ead8; --card:rgba(0,0,0,.35); --muted:#cfc5b0; --line:rgba(243,234,216,.25); --accent:#e5482c; }
+/* Layout follows the artwork: every number is a pixel position in the 906px-wide mockup, scaled by --u. */
+:root { color-scheme: light; --ink:#1c1f27; --red:#c62127; }
 [hidden] { display:none !important; }
-body { font:15px/1.4 system-ui,sans-serif; margin:0; height:100vh; overflow:hidden; color:var(--fg); background:linear-gradient(rgba(0,0,0,.1),rgba(0,0,0,.35)), url('/bg.jpg') center 55%/cover no-repeat fixed #111; }
-/* Compact panel: only as tall as its content, so the (sharp) illustration shows around it. */
-.panel { position:fixed; top:12px; left:12px; right:12px; max-height:calc(100vh - 24px); padding:.9rem; overflow-y:auto; box-sizing:border-box; border-radius:14px; background:rgba(12,12,12,.78); }
-h1 { font-size:1.4rem; margin:0 0 .6rem; }
-form { display:flex; gap:.5rem; flex-wrap:wrap; }
-label { flex-basis:100%; font-weight:600; }
-input { flex:1; min-width:0; padding:.6rem; border:1px solid var(--line); border-radius:6px; background:rgba(0,0,0,.4); color:var(--fg); font:inherit; }
-button, .dl { display:inline-block; padding:.6rem 1rem; border:0; border-radius:6px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; text-decoration:none; }
-button:disabled { opacity:.5; cursor:not-allowed; }
-.dl[aria-disabled="true"] { opacity:.5; pointer-events:none; cursor:not-allowed; }
-.dl.small { padding:.35rem .7rem; font-size:.85rem; flex:none; }
-.hint { flex-basis:100%; margin:0; font-size:.9rem; text-shadow:0 1px 3px #000; }
-.muted { color:var(--muted); margin:0; }
-#status { color:var(--fg); margin:.8rem 0 0; min-height:1.4em; text-shadow:0 1px 3px #000; }
-#status.err { color:#ff8a70; }
-.card { display:flex; gap:1rem; margin-top:1rem; padding:.8rem; background:var(--card); border:1px solid var(--line); border-radius:8px; }
-.art { width:96px; height:96px; flex:none; object-fit:cover; border-radius:6px; background:var(--line); }
-.info { flex:1; min-width:0; display:flex; flex-direction:column; gap:.5rem; align-items:flex-start; }
-.info > .bar { align-self:stretch; }
-.title { font-weight:600; overflow-wrap:anywhere; align-self:stretch; }
-.bar { height:8px; border-radius:4px; background:var(--line); overflow:hidden; }
-.bar span { display:block; height:100%; width:0; background:var(--accent); transition:width .3s; }
-ol { list-style:none; margin:1rem 0 0; padding:0; display:flex; flex-direction:column; gap:.5rem; }
-.row { display:flex; align-items:center; gap:.75rem; padding:.6rem; background:var(--card); border:1px solid var(--line); border-radius:8px; }
-.thumb { width:48px; height:48px; flex:none; object-fit:cover; border-radius:4px; background:var(--line); }
-.rowmain { flex:1; min-width:0; display:flex; flex-direction:column; gap:.3rem; }
-.rowtitle { font-weight:600; font-size:.95rem; overflow-wrap:anywhere; }
-.rowstatus { color:var(--muted); font-size:.85rem; }
+html { background:#faf2e7; }
+body { margin:0; font-family:system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink); }
+main { container-type:inline-size; --u:calc(100cqw / 906); }
+.sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.hero, .birds { position:relative; background:top / 100% auto no-repeat; }
+.hero { aspect-ratio:906 / 1735; background-image:url('/hero.webp'); }
+.birds { aspect-ratio:905 / 1738; background-image:url('/tracks.webp'); }
+.at { position:absolute; box-sizing:border-box; left:calc(var(--x) * var(--u)); top:calc(var(--y) * var(--u)); width:calc(var(--w) * var(--u)); height:calc(var(--h) * var(--u)); }
+
+#url { --x:452; --y:950; --w:410; --h:62; border:0; padding:0; background:transparent; color:var(--ink); outline:none; font:max(13px, calc(25 * var(--u))) system-ui, sans-serif; }
+#url::placeholder { color:#8b8984; font-style:italic; }
+#go { --x:437; --y:1042; --w:397; --h:89; border:0; padding:0; border-radius:calc(6 * var(--u)); background:transparent; cursor:pointer; }
+#go:hover { backdrop-filter:brightness(1.08); }
+#go:active { backdrop-filter:brightness(.9); }
+#go:disabled { backdrop-filter:grayscale(.7) brightness(1.12); cursor:progress; }
+#go:focus-visible, .mp3:focus-visible, #more:focus-visible { outline:calc(3 * var(--u)) solid var(--ink); outline-offset:calc(3 * var(--u)); }
+#status { --x:420; --y:1132; --w:430; --h:27; margin:0; text-align:center; font-size:max(11px, calc(17 * var(--u))); line-height:calc(27 * var(--u)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.err { color:var(--red) !important; border-color:var(--red) !important; }
+#more { --x:530; --y:1650; --w:100; --h:44; border:0; background:none; color:var(--ink); cursor:pointer; font:900 calc(30 * var(--u)) / 1 system-ui, sans-serif; letter-spacing:calc(6 * var(--u)); }
+
+ol { list-style:none; margin:0; padding:0; }
+li { position:relative; display:flex; align-items:center; box-sizing:border-box; }
+/* Row rule; --line lets a row's rule start later (the bird rows that sit next to the wing tip). */
+li::after { content:''; position:absolute; left:calc(var(--line, 0) * var(--u)); right:0; bottom:0; height:var(--lw); background:rgba(28, 31, 39, .8); }
+.txt { flex:1; min-width:0; }
+.t, .s { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.t { font-weight:700; }
+.s { color:#34363c; }
+.mp3 { flex:none; display:flex; align-items:center; justify-content:center; box-sizing:border-box; border:calc(3 * var(--u)) solid var(--ink); color:var(--ink); font-weight:800; text-decoration:none; white-space:nowrap; }
+.mp3[aria-disabled="true"] { opacity:.55; pointer-events:none; }
+
+/* Hero list: first four tracks, like the mockup. */
+#top { --x:343; --y:1272; --w:505; height:auto; }
+#top li { height:calc(93 * var(--u)); --lw:calc(2 * var(--u)); }
+#top .tile { width:calc(78 * var(--u)); margin:0 calc(16 * var(--u)) 0 calc(-4 * var(--u)); }
+#top .t { font-size:max(12px, calc(22 * var(--u))); }
+#top .s { font-size:max(11px, calc(18 * var(--u))); margin-top:calc(4 * var(--u)); }
+#top .mp3 { width:calc(113 * var(--u)); height:calc(46 * var(--u)); margin:0 calc(4 * var(--u)) 0 calc(14 * var(--u)); }
+#top .mp3, #zip { border-radius:calc(8 * var(--u)); font-size:max(11px, calc(22 * var(--u))); }
+#zip { --x:796; --y:1192; --w:92; --h:44; }
+
+/* Bird pages: the rest of the playlist, eleven rows per page, last two stepping right around the wing. */
+.birds ol { --x:412; --y:149; --w:480; height:auto; }
+.birds li { height:calc(136.2 * var(--u)); padding-top:calc(14 * var(--u)); --lw:calc(4 * var(--u)); }
+.birds li:nth-child(10) { margin-left:calc(35 * var(--u)); --line:25; }
+.birds li:nth-child(11) { margin-left:calc(70 * var(--u)); --line:20; }
+.birds .tile { width:calc(95 * var(--u)); margin:0 calc(15 * var(--u)) 0 calc(3 * var(--u)); }
+.birds .t { font-size:max(13px, calc(25 * var(--u))); }
+.birds .s { font-size:max(11px, calc(19 * var(--u))); margin-top:calc(5 * var(--u)); }
+.birds .mp3 { width:calc(124 * var(--u)); height:calc(50 * var(--u)); margin-left:calc(14 * var(--u)); border-radius:calc(10 * var(--u)); font-size:max(12px, calc(25 * var(--u))); }
 </style>
 </head>
 <body>
-<main class="panel">
-<h1>SoundCloud to MP3</h1>
-<form id="f">
-  <label for="url">SoundCloud track or playlist link</label>
-  <input id="url" type="url" required aria-describedby="hint" placeholder="https://soundcloud.com/artist/track or /artist/sets/playlist">
-  <button id="go" type="submit">Convert</button>
-  <p id="hint" class="hint muted">Single tracks and playlists (sets) both work.</p>
-</form>
-
-<p id="status" role="status" aria-live="polite"></p>
-
-<div id="card" class="card" hidden>
-  <img id="art" class="art" alt="" hidden>
-  <div class="info">
-    <div id="title" class="title"></div>
-    <div id="bar" class="bar" role="progressbar" aria-label="Conversion progress" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="0"><span></span></div>
-    <a id="dl" class="dl" hidden>Download MP3</a>
-  </div>
-</div>
-
-<section id="pl" hidden>
-  <div class="card">
-    <img id="plArt" class="art" alt="" hidden>
-    <div class="info">
-      <div id="plTitle" class="title"></div>
-      <p id="plCount" class="muted"></p>
-      <p id="plOverall" class="muted"></p>
-      <a id="zip" class="dl" aria-disabled="true">Download all (.zip)</a>
-    </div>
-  </div>
-  <ol id="tracks"></ol>
+<main>
+<section class="hero">
+  <h1 class="sr">Ultimate SoundCloud Downloader</h1>
+  <form id="f">
+    <label class="sr" for="url">SoundCloud track or playlist link</label>
+    <input id="url" class="at" type="url" required placeholder="Paste SoundCloud URL here...">
+    <button id="go" class="at" type="submit"><span class="sr">Convert</span></button>
+  </form>
+  <p id="status" class="at" role="status" aria-live="polite"></p>
+  <h2 class="sr">Downloadable tracks</h2>
+  <a id="zip" class="at mp3" aria-disabled="true" hidden>⤓ ZIP</a>
+  <ol id="top" class="at"></ol>
+  <button id="more" class="at" type="button" aria-label="Show the rest of the playlist" hidden>•••</button>
 </section>
+<div id="rest"></div>
 </main>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
-const trackName = (artist, title) => (artist ? artist + ' – ' + (title || '') : title || '');
+const TOP = 4, PER_PAGE = 11;
 let busy = false;
 
 function setStatus(text, err) {
   const s = $('status');
   if (s.textContent !== text) s.textContent = text;
+  s.title = text;
   s.classList.toggle('err', !!err);
-}
-
-function setBusy(b) {
-  busy = b;
-  $('go').disabled = b;
 }
 
 // Only site-relative or http(s) URLs from the API become links.
@@ -99,126 +101,76 @@ function setLink(a, url) {
   return false;
 }
 
-// Artwork stays hidden until it actually loads, and hides again if it fails.
-function setArt(img, src) {
-  img.alt = '';
-  img.hidden = true;
-  img.onload = () => { img.hidden = false; };
-  img.onerror = () => { img.hidden = true; img.removeAttribute('src'); };
-  if (typeof src === 'string' && src) img.src = src;
-  else img.removeAttribute('src');
-}
+const clock = (ms) => { const s = Math.round((Number(ms) || 0) / 1000); return s ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : ''; };
 
-function makeBar(name) {
-  const bar = document.createElement('div');
-  bar.className = 'bar';
-  bar.setAttribute('role', 'progressbar');
-  bar.setAttribute('aria-label', name);
-  bar.setAttribute('aria-valuemin', '0');
-  bar.setAttribute('aria-valuemax', '1000');
-  bar.setAttribute('aria-valuenow', '0');
-  bar.append(document.createElement('span'));
-  return bar;
-}
-
-function setBar(bar, it) {
-  const p = Math.min(1000, Math.max(0, Number(it.progress) || 0));
-  bar.setAttribute('aria-valuenow', String(p));
-  bar.firstElementChild.style.width = p / 10 + '%';
-}
-
-function newItem(progressUrl) {
-  return { progress_url: progressUrl, progress: 0, text: 'Queued', message: '', done: false, failed: false, download_url: null };
-}
-
-function statusText(it) {
-  if (it.failed) return it.message || 'Conversion failed.';
-  if (it.done) return 'Finished';
-  return it.text || 'Queued';
-}
-
-function makeRow(name, image) {
+function makeRow(t, big) {
   const li = document.createElement('li');
-  li.className = 'row';
-  const img = document.createElement('img');
-  img.className = 'thumb';
-  setArt(img, image);
-  const main = document.createElement('div');
-  main.className = 'rowmain';
+  const tile = document.createElement('img');
+  tile.className = 'tile';
+  tile.alt = '';
+  tile.src = big ? '/tile-big.png' : '/tile-small.png';
+  const txt = document.createElement('div');
+  txt.className = 'txt';
   const title = document.createElement('div');
-  title.className = 'rowtitle';
-  title.textContent = name;
-  const bar = makeBar('Progress for ' + name);
-  const status = document.createElement('div');
-  status.className = 'rowstatus';
-  main.append(title, bar, status);
-  const mp3 = document.createElement('a');
-  mp3.className = 'dl small';
-  mp3.textContent = 'MP3';
-  mp3.setAttribute('aria-label', 'Download MP3: ' + name);
-  mp3.hidden = true;
-  li.append(img, main, mp3);
-  return { li, bar, status, mp3 };
+  title.className = 't';
+  title.textContent = t.title || 'track';
+  const sub = document.createElement('div');
+  sub.className = 's';
+  txt.append(title, sub);
+  const btn = document.createElement('a');
+  btn.className = 'mp3';
+  btn.setAttribute('aria-label', 'Download MP3: ' + title.textContent);
+  li.append(tile, txt, btn);
+  const it = {
+    li, sub, btn, arrow: big ? '↓' : '⤓', meta: [t.artist, clock(t.duration)].filter(Boolean).join(' • '),
+    progress_url: t.progress_url, progress: 0, text: 'Queued', message: '', done: false, failed: false, download_url: null,
+  };
+  renderRow(it);
+  return it;
 }
 
 function renderRow(it) {
-  setBar(it.el.bar, it);
-  it.el.status.textContent = statusText(it);
-  const ready = it.done && !it.failed && setLink(it.el.mp3, it.download_url);
-  it.el.mp3.hidden = !ready;
+  it.sub.textContent = it.failed ? it.message || 'Conversion failed.' : it.meta;
+  it.sub.classList.toggle('err', it.failed);
+  const ready = it.done && !it.failed && setLink(it.btn, it.download_url);
+  it.btn.textContent = ready ? it.arrow + ' MP3' : it.failed ? 'FAILED' : Math.floor(Math.min(1000, it.progress) / 10) + '%';
+  it.btn.setAttribute('aria-disabled', String(!ready));
+  it.btn.classList.toggle('err', it.failed);
 }
 
-function startTrack(j) {
-  const it = newItem(j.progress_url);
-  $('title').textContent = trackName(j.artist, j.title || (j.info && j.info.title));
-  setArt($('art'), j.info && j.info.image);
-  $('card').hidden = false;
-  return {
-    items: [it],
-    render() {
-      setBar($('bar'), it);
-      const ready = it.done && !it.failed && setLink($('dl'), it.download_url);
-      $('dl').hidden = !ready;
-      setStatus(statusText(it), it.failed);
-    },
-  };
-}
-
-function startPlaylist(j) {
-  const list = $('tracks');
-  list.replaceChildren();
-  const items = (j.tracks || []).map((t) => {
-    const it = newItem(t.progress_url);
-    it.el = makeRow(trackName(t.artist, t.title), t.image);
-    list.append(it.el.li);
+// First four tracks go under the heading; the rest fill bird pages below, eleven per page.
+function show(j) {
+  let page;
+  const items = (j.tracks || []).map((t, i) => {
+    const big = i >= TOP;
+    if (big && (i - TOP) % PER_PAGE === 0) {
+      const s = document.createElement('section');
+      s.className = 'birds';
+      page = document.createElement('ol');
+      page.className = 'at';
+      s.append(page);
+      $('rest').append(s);
+    }
+    const it = makeRow(t, big);
+    (big ? page : $('top')).append(it.li);
     return it;
   });
-  $('plTitle').textContent = j.title || (j.info && j.info.title) || '';
-  $('plCount').textContent = items.length + ' tracks';
-  setArt($('plArt'), j.info && j.info.image);
-  $('pl').hidden = false;
   const n = items.length;
-  const zipUrl = j.zip_url;
-  setStatus('Converting playlist…');
+  const zip = $('zip');
+  zip.hidden = j.kind !== 'playlist';
+  $('more').hidden = n <= TOP;
   return {
     items,
     render() {
       items.forEach(renderRow);
       const ok = items.filter((it) => it.done && !it.failed).length;
       const bad = items.filter((it) => it.failed).length;
-      const finished = items.every((it) => it.done);
-      let overall = ok + ' of ' + n + ' done' + (bad ? ' · ' + bad + ' failed' : '');
-      if (finished && n > 0 && bad === n) overall += '. Nothing to download.';
-      $('plOverall').textContent = overall;
-      const zip = $('zip');
-      const ready = finished && n > 0 && bad < n && setLink(zip, zipUrl);
-      if (!ready) zip.removeAttribute('href');
-      zip.setAttribute('aria-disabled', ready ? 'false' : 'true');
-      if (finished) {
-        if (n > 0 && bad === n) setStatus('No tracks converted.', true);
-        else if (bad) setStatus('Playlist finished with ' + bad + ' failed.');
-        else setStatus('Playlist finished.');
-      }
+      const finished = ok + bad === n;
+      const zipReady = finished && ok > 0 && setLink(zip, j.zip_url);
+      zip.setAttribute('aria-disabled', String(!zipReady));
+      if (!finished) setStatus(n === 1 ? 'Converting…' : `Converting… ${ok + bad} of ${n} done`);
+      else if (!ok) setStatus(n === 1 ? items[0].sub.textContent : 'No tracks converted.', true);
+      else setStatus(bad ? `Done. ${bad} of ${n} failed.` : n === 1 ? 'Done.' : `Done. All ${n} tracks ready.`);
     },
   };
 }
@@ -251,33 +203,35 @@ async function runJob(job) {
     job.render();
     if (job.items.some((it) => !it.done)) await sleep(1500);
   }
-  setBusy(false);
+  busy = false;
+  $('go').disabled = false;
 }
 
 // Opened straight from disk: relative /api calls can't reach the server.
 if (location.protocol === 'file:') setStatus('Open http://localhost:8787 instead of this file (start it with: node server.js).', true);
 
+$('more').addEventListener('click', () => $('rest').firstElementChild?.scrollIntoView({ behavior: 'smooth' }));
+
 $('f').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (busy) return;
-  setBusy(true);
-  $('card').hidden = true;
-  $('pl').hidden = true;
-  $('dl').hidden = true;
-  $('title').textContent = '';
-  $('tracks').replaceChildren();
-  setArt($('art'), '');
-  setArt($('plArt'), '');
+  busy = true;
+  $('go').disabled = true;
+  $('top').replaceChildren();
+  $('rest').replaceChildren();
+  $('zip').hidden = true;
+  $('more').hidden = true;
   setStatus('Starting…');
   let job;
   try {
     const r = await fetch('/api/download?format=mp3&url=' + encodeURIComponent($('url').value.trim()));
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.success) throw new Error(j.message || 'Request failed.');
-    job = j.kind === 'playlist' ? startPlaylist(j) : startTrack(j);
+    job = show(j);
   } catch (err) {
     setStatus(err.message || 'Request failed.', true);
-    setBusy(false);
+    busy = false;
+    $('go').disabled = false;
     return;
   }
   await runJob(job);

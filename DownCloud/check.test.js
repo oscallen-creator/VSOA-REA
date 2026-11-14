@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { isAllowedSoundCloudUrl, pickTranscoding, safeFilename, zipEntries } = require('./server.js');
+const { isAllowedSoundCloudUrl, pickTranscoding, safeFilename, uniqueNames, zipEntries } = require('./server.js');
 
 test('allowed hosts', () => {
   for (const u of ['https://soundcloud.com/a/b', 'http://www.soundcloud.com/a', 'https://m.soundcloud.com/a', 'https://on.soundcloud.com/abc'])
@@ -32,6 +32,10 @@ test('safeFilename', () => {
   assert.strictEqual(safeFilename(''), 'track');
   assert.strictEqual(safeFilename('  ...  '), 'track');
   assert.strictEqual(safeFilename(undefined), 'track');
+});
+
+test('zip names: no numbers, repeats made unique', () => {
+  assert.deepStrictEqual(uniqueNames(['A - x', 'B - y', 'a - X', 'A - x', 'A - x (2)']), ['A - x', 'B - y', 'a - X (2)', 'A - x (3)', 'A - x (2) (2)']);
 });
 
 test('audio/mpegurl is not mp3', () => {
