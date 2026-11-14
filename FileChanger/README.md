@@ -9,8 +9,8 @@ included. See [Provenance](#provenance).
 ## Use it
 
 FileChanger lives in the menu bar. Start dragging one or more files (from Finder, the Desktop, a Float shelf, or any
-app that drags files), and while you hold the drag, **tap** a modifier key to open a wheel at the cursor. Drop the files
-on a petal.
+app that drags files), and while you hold the drag, **tap** a modifier key to open a wheel at the cursor. Holding the
+key before you start the drag works too: the wheel opens as soon as the drag begins. Drop the files on a petal.
 
 | Tap while dragging | Wheel | What a petal does |
 | --- | --- | --- |
@@ -65,6 +65,11 @@ cp -R build/FileChanger.app /Applications/
 ```bash
 open /Applications/FileChanger.app
 ```
+
+Or make an installer disk image: `scripts/make-dmg.sh` builds, runs every test, and writes `build/FileChanger.dmg`.
+Open it and drag FileChanger onto Applications, or double-click **Setup & Test** to install it and run the self-test
+(the unit tests, the signature and a launch check). The window background is rendered once by
+`scripts/make-dmg-background.swift` into `dmg/` (not committed).
 
 The app is ad-hoc signed for personal use, like Oscar's Whisper. The first launch shows the Welcome window and a
 practice wheel.

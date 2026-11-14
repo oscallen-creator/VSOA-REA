@@ -359,7 +359,7 @@ struct AboutSettingsPane: View {
     private var build: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1" }
     var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: "circle.hexagongrid.fill").font(.system(size: 54)).foregroundStyle(Brand.accent)
+            Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 80, height: 80)
             Text("FileChanger").font(.title.bold())
             Text("Version \(version) (\(build))").foregroundStyle(.secondary)
             Text("Drag files, tap a modifier, drop them on a wheel.").multilineTextAlignment(.center)

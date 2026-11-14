@@ -41,6 +41,7 @@ final class ToolPanel: NSObject, NSWindowDelegate {
             content
         }
         .environment(\.toolPanel, context)
+        .tint(Brand.accent)
         .frame(minWidth: 520, minHeight: 380)
         window.contentView = NSHostingView(rootView: root)
     }
@@ -99,7 +100,7 @@ struct ToolFooter: View {
             if let message { Text(message).font(.caption).foregroundStyle(.red).lineLimit(2) }
             Spacer()
             Button("Cancel") { panel.close() }.keyboardShortcut(.cancelAction)
-            Button(primary, action: action)
+            Button(action: action) { Text(primary).foregroundStyle(Brand.onAccent) }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent).tint(Brand.accent)
                 .disabled(!isEnabled)
@@ -108,8 +109,10 @@ struct ToolFooter: View {
     }
 }
 
-/// Accent colour, the same orange Tangerine uses (#FF5200, SHL-100).
+/// Theme colour: the lime of the lizard icon (#A2C923). Text drawn on a lime fill uses `onAccent`,
+/// because white on lime is too faint to read.
 enum Brand {
-    static let accent = Color(red: 1.0, green: 0.322, blue: 0.0)
-    static let nsAccent = NSColor(srgbRed: 1.0, green: 0.322, blue: 0.0, alpha: 1)
+    static let accent = Color(red: 162 / 255, green: 201 / 255, blue: 35 / 255)
+    static let nsAccent = NSColor(srgbRed: 162 / 255, green: 201 / 255, blue: 35 / 255, alpha: 1)
+    static let onAccent = Color(red: 0.07, green: 0.08, blue: 0.06)
 }

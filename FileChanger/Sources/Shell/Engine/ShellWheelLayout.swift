@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -84,4 +85,11 @@ func shellDisplayLabel(_ raw: String) -> String {
         if u.hasSuffix("S"), acronyms.contains(String(u.dropLast())) { return String(u.dropLast()) + "s" }
         return u.prefix(1) + u.dropFirst().lowercased()
     }.joined(separator: " ")
+}
+
+/// The drag operation to answer a drag session with: one the source allows, preferring copy.
+/// Finder with Command held offers only move, and answering .copy would make it refuse the drop.
+func shellDragOperation(allowed: NSDragOperation) -> NSDragOperation {
+    for op in [NSDragOperation.copy, .generic, .move, .link] where allowed.contains(op) { return op }
+    return []
 }

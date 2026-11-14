@@ -39,10 +39,20 @@ enum ShellTasks {
 /// Starts jobs from the wheels and applies the Desktop reveal (SHL-32, SHL-35).
 @MainActor
 enum ShellJobs {
+    /// Outputs put at the drop point; the Finder reveal skips them (its window would cover the icon).
+    private static var placed: Set<URL> = []
+
     static func convert(_ files: [URL], to target: ConversionTarget) {
+        // The cursor is still at the drop point; decide desktop-or-not once, here.
+        let drop = ShellDropPlacement.desktopDropPoint(NSEvent.mouseLocation)
         Task { @MainActor in
-            await Operations.run(title: "Converting to \(target.label)", files: files) {
-                try await Conversions.convert($0, to: target, progress: $1)
+            await Operations.run(title: "Converting to \(target.label)", files: files) { file, progress in
+                let out = try await Conversions.convert(file, to: target, progress: progress)
+                // Placement is best effort: if the move fails, the converted file stays beside the original.
+                guard let drop, let dest = try? await ShellDropPlacement.place(out, at: drop, index: files.firstIndex(of: file) ?? 0)
+                else { return out }
+                await MainActor.run { _ = placed.insert(dest.standardizedFileURL) }
+                return dest
             }
         }
     }
@@ -50,7 +60,7 @@ enum ShellJobs {
     /// After a job whose output lies on the Desktop, bring Finder forward on the results.
     static func revealDesktopOutputs(_ outputs: [URL]) {
         guard UserDefaults.standard.bool(forKey: ShellSettings.revealsDesktop) else { return }
-        let onDesktop = outputs.filter(shellIsOnDesktop)
+        let onDesktop = outputs.filter { shellIsOnDesktop($0) && !placed.contains($0.standardizedFileURL) }
         if !onDesktop.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(onDesktop) }
     }
 }
