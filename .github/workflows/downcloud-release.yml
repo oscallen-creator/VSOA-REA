@@ -1,0 +1,78 @@
+name: DownCloud release
+
+on:
+  push:
+    tags:
+      - "downcloud-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: downcloud-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            script: dist:mac
+            file: DownCloud-Mac.dmg
+          - os: windows-latest
+            script: dist:win
+            file: DownCloud-Windows.exe
+    defaults:
+      run:
+        working-directory: DownCloud
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: DownCloud/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        if: runner.os == 'macOS'
+        run: npm test
+
+      - name: Build installer
+        run: npm run ${{ matrix.script }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.file }}
+          path: DownCloud/dist/${{ matrix.file }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/downcloud-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - name: Create GitHub release (not marked latest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" out/DownCloud-Mac.dmg out/DownCloud-Windows.exe \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "DownCloud ${TAG#downcloud-}" \
+            --latest=false \
+            --notes "Mac (Apple Silicon) DMG and Windows installer. Both are unsigned; see DownCloud/README.md for first-launch steps."

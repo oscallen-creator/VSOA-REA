@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoundCloud to MP3</title>
+<style>
+:root { color-scheme: dark; --fg:#f3ead8; --card:rgba(0,0,0,.35); --muted:#cfc5b0; --line:rgba(243,234,216,.25); --accent:#e5482c; }
+[hidden] { display:none !important; }
+body { font:15px/1.4 system-ui,sans-serif; margin:0; height:100vh; overflow:hidden; color:var(--fg); background:linear-gradient(rgba(0,0,0,.1),rgba(0,0,0,.35)), url('/bg.jpg') center 55%/cover no-repeat fixed #111; }
+/* Compact panel: only as tall as its content, so the (sharp) illustration shows around it. */
+.panel { position:fixed; top:12px; left:12px; right:12px; max-height:calc(100vh - 24px); padding:.9rem; overflow-y:auto; box-sizing:border-box; border-radius:14px; background:rgba(12,12,12,.78); }
+h1 { font-size:1.4rem; margin:0 0 .6rem; }
+form { display:flex; gap:.5rem; flex-wrap:wrap; }
+label { flex-basis:100%; font-weight:600; }
+input { flex:1; min-width:0; padding:.6rem; border:1px solid var(--line); border-radius:6px; background:rgba(0,0,0,.4); color:var(--fg); font:inherit; }
+button, .dl { display:inline-block; padding:.6rem 1rem; border:0; border-radius:6px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; text-decoration:none; }
+button:disabled { opacity:.5; cursor:not-allowed; }
+.dl[aria-disabled="true"] { opacity:.5; pointer-events:none; cursor:not-allowed; }
+.dl.small { padding:.35rem .7rem; font-size:.85rem; flex:none; }
+.hint { flex-basis:100%; margin:0; font-size:.9rem; text-shadow:0 1px 3px #000; }
+.muted { color:var(--muted); margin:0; }
+#status { color:var(--fg); margin:.8rem 0 0; min-height:1.4em; text-shadow:0 1px 3px #000; }
+#status.err { color:#ff8a70; }
+.card { display:flex; gap:1rem; margin-top:1rem; padding:.8rem; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+.art { width:96px; height:96px; flex:none; object-fit:cover; border-radius:6px; background:var(--line); }
+.info { flex:1; min-width:0; display:flex; flex-direction:column; gap:.5rem; align-items:flex-start; }
+.info > .bar { align-self:stretch; }
+.title { font-weight:600; overflow-wrap:anywhere; align-self:stretch; }
+.bar { height:8px; border-radius:4px; background:var(--line); overflow:hidden; }
+.bar span { display:block; height:100%; width:0; background:var(--accent); transition:width .3s; }
+ol { list-style:none; margin:1rem 0 0; padding:0; display:flex; flex-direction:column; gap:.5rem; }
+.row { display:flex; align-items:center; gap:.75rem; padding:.6rem; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+.thumb { width:48px; height:48px; flex:none; object-fit:cover; border-radius:4px; background:var(--line); }
+.rowmain { flex:1; min-width:0; display:flex; flex-direction:column; gap:.3rem; }
+.rowtitle { font-weight:600; font-size:.95rem; overflow-wrap:anywhere; }
+.rowstatus { color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<main class="panel">
+<h1>SoundCloud to MP3</h1>
+<form id="f">
+  <label for="url">SoundCloud track or playlist link</label>
+  <input id="url" type="url" required aria-describedby="hint" placeholder="https://soundcloud.com/artist/track or /artist/sets/playlist">
+  <button id="go" type="submit">Convert</button>
+  <p id="hint" class="hint muted">Single tracks and playlists (sets) both work.</p>
+</form>
+
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="card" class="card" hidden>
+  <img id="art" class="art" alt="" hidden>
+  <div class="info">
+    <div id="title" class="title"></div>
+    <div id="bar" class="bar" role="progressbar" aria-label="Conversion progress" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="0"><span></span></div>
+    <a id="dl" class="dl" hidden>Download MP3</a>
+  </div>
+</div>
+
+<section id="pl" hidden>
+  <div class="card">
+    <img id="plArt" class="art" alt="" hidden>
+    <div class="info">
+      <div id="plTitle" class="title"></div>
+      <p id="plCount" class="muted"></p>
+      <p id="plOverall" class="muted"></p>
+      <a id="zip" class="dl" aria-disabled="true">Download all (.zip)</a>
+    </div>
+  </div>
+  <ol id="tracks"></ol>
+</section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+const trackName = (artist, title) => (artist ? artist + ' – ' + (title || '') : title || '');
+let busy = false;
+
+function setStatus(text, err) {
+  const s = $('status');
+  if (s.textContent !== text) s.textContent = text;
+  s.classList.toggle('err', !!err);
+}
+
+function setBusy(b) {
+  busy = b;
+  $('go').disabled = b;
+}
+
+// Only site-relative or http(s) URLs from the API become links.
+function setLink(a, url) {
+  if (typeof url === 'string' && /^(\/(?!\/)|https?:\/\/)/.test(url)) {
+    a.href = url;
+    return true;
+  }
+  a.removeAttribute('href');
+  return false;
+}
+
+// Artwork stays hidden until it actually loads, and hides again if it fails.
+function setArt(img, src) {
+  img.alt = '';
+  img.hidden = true;
+  img.onload = () => { img.hidden = false; };
+  img.onerror = () => { img.hidden = true; img.removeAttribute('src'); };
+  if (typeof src === 'string' && src) img.src = src;
+  else img.removeAttribute('src');
+}
+
+function makeBar(name) {
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  bar.setAttribute('role', 'progressbar');
+  bar.setAttribute('aria-label', name);
+  bar.setAttribute('aria-valuemin', '0');
+  bar.setAttribute('aria-valuemax', '1000');
+  bar.setAttribute('aria-valuenow', '0');
+  bar.append(document.createElement('span'));
+  return bar;
+}
+
+function setBar(bar, it) {
+  const p = Math.min(1000, Math.max(0, Number(it.progress) || 0));
+  bar.setAttribute('aria-valuenow', String(p));
+  bar.firstElementChild.style.width = p / 10 + '%';
+}
+
+function newItem(progressUrl) {
+  return { progress_url: progressUrl, progress: 0, text: 'Queued', message: '', done: false, failed: false, download_url: null };
+}
+
+function statusText(it) {
+  if (it.failed) return it.message || 'Conversion failed.';
+  if (it.done) return 'Finished';
+  return it.text || 'Queued';
+}
+
+function makeRow(name, image) {
+  const li = document.createElement('li');
+  li.className = 'row';
+  const img = document.createElement('img');
+  img.className = 'thumb';
+  setArt(img, image);
+  const main = document.createElement('div');
+  main.className = 'rowmain';
+  const title = document.createElement('div');
+  title.className = 'rowtitle';
+  title.textContent = name;
+  const bar = makeBar('Progress for ' + name);
+  const status = document.createElement('div');
+  status.className = 'rowstatus';
+  main.append(title, bar, status);
+  const mp3 = document.createElement('a');
+  mp3.className = 'dl small';
+  mp3.textContent = 'MP3';
+  mp3.setAttribute('aria-label', 'Download MP3: ' + name);
+  mp3.hidden = true;
+  li.append(img, main, mp3);
+  return { li, bar, status, mp3 };
+}
+
+function renderRow(it) {
+  setBar(it.el.bar, it);
+  it.el.status.textContent = statusText(it);
+  const ready = it.done && !it.failed && setLink(it.el.mp3, it.download_url);
+  it.el.mp3.hidden = !ready;
+}
+
+function startTrack(j) {
+  const it = newItem(j.progress_url);
+  $('title').textContent = trackName(j.artist, j.title || (j.info && j.info.title));
+  setArt($('art'), j.info && j.info.image);
+  $('card').hidden = false;
+  return {
+    items: [it],
+    render() {
+      setBar($('bar'), it);
+      const ready = it.done && !it.failed && setLink($('dl'), it.download_url);
+      $('dl').hidden = !ready;
+      setStatus(statusText(it), it.failed);
+    },
+  };
+}
+
+function startPlaylist(j) {
+  const list = $('tracks');
+  list.replaceChildren();
+  const items = (j.tracks || []).map((t) => {
+    const it = newItem(t.progress_url);
+    it.el = makeRow(trackName(t.artist, t.title), t.image);
+    list.append(it.el.li);
+    return it;
+  });
+  $('plTitle').textContent = j.title || (j.info && j.info.title) || '';
+  $('plCount').textContent = items.length + ' tracks';
+  setArt($('plArt'), j.info && j.info.image);
+  $('pl').hidden = false;
+  const n = items.length;
+  const zipUrl = j.zip_url;
+  setStatus('Converting playlist…');
+  return {
+    items,
+    render() {
+      items.forEach(renderRow);
+      const ok = items.filter((it) => it.done && !it.failed).length;
+      const bad = items.filter((it) => it.failed).length;
+      const finished = items.every((it) => it.done);
+      let overall = ok + ' of ' + n + ' done' + (bad ? ' · ' + bad + ' failed' : '');
+      if (finished && n > 0 && bad === n) overall += '. Nothing to download.';
+      $('plOverall').textContent = overall;
+      const zip = $('zip');
+      const ready = finished && n > 0 && bad < n && setLink(zip, zipUrl);
+      if (!ready) zip.removeAttribute('href');
+      zip.setAttribute('aria-disabled', ready ? 'false' : 'true');
+      if (finished) {
+        if (n > 0 && bad === n) setStatus('No tracks converted.', true);
+        else if (bad) setStatus('Playlist finished with ' + bad + ' failed.');
+        else setStatus('Playlist finished.');
+      }
+    },
+  };
+}
+
+async function pollItem(it) {
+  try {
+    const r = await fetch(it.progress_url);
+    const j = await r.json();
+    if (!r.ok) {
+      it.done = true;
+      it.failed = true;
+      it.message = j.message || 'Lost track of the job.';
+      return;
+    }
+    it.progress = Number(j.progress) || 0;
+    it.text = j.text || it.text;
+    it.message = j.message || '';
+    it.download_url = j.download_url || null;
+    it.done = it.progress >= 1000 || j.text === 'Error';
+    it.failed = j.text === 'Error' || (it.done && !j.success);
+  } catch (err) {
+    // Network hiccup: leave the item as it was and try again next tick.
+  }
+}
+
+async function runJob(job) {
+  job.render();
+  while (job.items.some((it) => !it.done)) {
+    await Promise.all(job.items.filter((it) => !it.done).map(pollItem));
+    job.render();
+    if (job.items.some((it) => !it.done)) await sleep(1500);
+  }
+  setBusy(false);
+}
+
+// Opened straight from disk: relative /api calls can't reach the server.
+if (location.protocol === 'file:') setStatus('Open http://localhost:8787 instead of this file (start it with: node server.js).', true);
+
+$('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (busy) return;
+  setBusy(true);
+  $('card').hidden = true;
+  $('pl').hidden = true;
+  $('dl').hidden = true;
+  $('title').textContent = '';
+  $('tracks').replaceChildren();
+  setArt($('art'), '');
+  setArt($('plArt'), '');
+  setStatus('Starting…');
+  let job;
+  try {
+    const r = await fetch('/api/download?format=mp3&url=' + encodeURIComponent($('url').value.trim()));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.success) throw new Error(j.message || 'Request failed.');
+    job = j.kind === 'playlist' ? startPlaylist(j) : startTrack(j);
+  } catch (err) {
+    setStatus(err.message || 'Request failed.', true);
+    setBusy(false);
+    return;
+  }
+  await runJob(job);
+});
+</script>
+</body>
+</html>
