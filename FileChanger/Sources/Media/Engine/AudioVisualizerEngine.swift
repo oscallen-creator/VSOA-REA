@@ -21,7 +21,7 @@ enum VisualizerShape: String, Sendable, CaseIterable {
 }
 
 enum AudioVisualizerEngine {
-    static let orange = CGColor(srgbRed: 1, green: 0.322, blue: 0, alpha: 1)
+    static let lime = CGColor(srgbRed: 162 / 255, green: 201 / 255, blue: 35 / 255, alpha: 1)   // Brand.accent
 
     /// Even pixel size for a shape. Automatic follows the image when there is one, otherwise 1920x1080.
     static func canvas(_ shape: VisualizerShape, image: CGSize?) -> CGSize {
@@ -83,7 +83,7 @@ enum AudioVisualizerEngine {
         let columns = max(8, Int(size.width / 8))
         let lo = Int((center - window / 2) * 8000), span = max(1, Int(window * 8000))
         let cy = size.height / 2, maxHalf = size.height * 0.4
-        ctx.setStrokeColor(orange)
+        ctx.setStrokeColor(lime)
         ctx.setLineWidth(max(2, size.width / 400))
         ctx.setLineCap(.round)
         for c in 0..<columns {

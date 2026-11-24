@@ -1,5 +1,8 @@
 import AppKit
+import os
 import SwiftUI
+
+private let log = Logger(subsystem: "io.github.oscallen-creator.filechanger", category: "fan")
 
 /// One petal on a wheel.
 struct FanItem: Identifiable {
@@ -43,7 +46,11 @@ final class FanModel: ObservableObject {
         if i != nil { ShellFeedback.hover() }
     }
 
-    func hover(at offset: CGPoint) { setHovered(layout.hit(offset)) }
+    func hover(at offset: CGPoint, source: String) {
+        let i = layout.hit(offset)
+        if i != hovered { log.debug("hovered \(i ?? -1) via \(source)") }
+        setHovered(i)
+    }
 
     var centreTitle: String { hovered.flatMap { items.indices.contains($0) ? items[$0].detail : nil } ?? wheel.title }
     var centrePrompt: String { hovered == nil ? (items.isEmpty ? emptyMessage : wheel.prompt) : "" }
@@ -96,7 +103,7 @@ struct FanView: View {
                 .fill(metallic ? AnyShapeStyle(LinearGradient(colors: [Color(white: 0.27), Color(white: 0.14)], startPoint: .top, endPoint: .bottom))
                                : AnyShapeStyle(.ultraThinMaterial))
                 .frame(width: (layout.radius + 8) * 2, height: (layout.radius + 8) * 2)
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+                .overlay(Circle().strokeBorder(Brand.accent.opacity(0.55), lineWidth: 1))
                 .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
             ForEach(layout.petals, id: \.index) { p in
                 let item = model.items[p.index]
@@ -115,13 +122,13 @@ struct FanView: View {
     }
 
     private func petalFill(hot: Bool, group: Int, groupCount: Int) -> AnyShapeStyle {
-        if hot { return AnyShapeStyle(Brand.accent.opacity(0.92)) }
+        if hot { return AnyShapeStyle(Brand.accent) }
         if metallic {
             let w = 0.62 - 0.1 * Double(group % 3)
             return AnyShapeStyle(LinearGradient(colors: [Color(white: min(0.88, w + 0.22)), Color(white: w - 0.12)], startPoint: .top, endPoint: .bottom))
         }
-        // Alternate groups get a slightly different tint so grouped formats read as clusters.
-        return AnyShapeStyle(group % 2 == 0 ? Color.white.opacity(0.20) : Color.white.opacity(0.10))
+        // Alternate groups get a slightly different strength of lime so grouped formats read as clusters.
+        return AnyShapeStyle(Brand.accent.opacity(group % 2 == 0 ? 0.34 : 0.22))
     }
 
     private func petalLabel(_ item: FanItem, hot: Bool) -> some View {
@@ -130,8 +137,8 @@ struct FanView: View {
             Text(item.label).font(.system(size: model.items.count > 10 ? 10.5 : 11.5, weight: .semibold)).lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
-        .foregroundStyle(hot ? Color.white : (metallic ? Color.black.opacity(0.8) : Color.white))
-        .shadow(color: .black.opacity(metallic ? 0 : 0.35), radius: 1)
+        .foregroundStyle(hot ? Brand.onAccent : (metallic ? Color.black.opacity(0.8) : Color.white))
+        .shadow(color: .black.opacity(metallic || hot ? 0 : 0.35), radius: 1)
         .frame(width: 60)
         .allowsHitTesting(false)
     }
@@ -202,25 +209,28 @@ final class FanDropView: NSView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        log.debug("draggingEntered")
         onDragEnter?()
-        model.hover(at: offsetFromWindow(sender.draggingLocation))
-        return .copy
+        model.hover(at: offsetFromWindow(sender.draggingLocation), source: "drag-destination")
+        return shellDragOperation(allowed: sender.draggingSourceOperationMask)
     }
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        model.hover(at: offsetFromWindow(sender.draggingLocation))
-        return .copy
+        model.hover(at: offsetFromWindow(sender.draggingLocation), source: "drag-destination")
+        return shellDragOperation(allowed: sender.draggingSourceOperationMask)
     }
     override func draggingExited(_ sender: NSDraggingInfo?) {
+        log.debug("draggingExited")
         model.setHovered(nil)
         onDragExit?()
     }
     /// A rejected drop (hub, gap) or a cancelled drag still ends here: always close the wheel.
-    override func draggingEnded(_ sender: NSDraggingInfo) { onDragEnd?() }
+    override func draggingEnded(_ sender: NSDraggingInfo) { log.debug("draggingEnded"); onDragEnd?() }
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
         model.layout.hit(offsetFromWindow(sender.draggingLocation)) != nil
     }
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         guard let i = model.layout.hit(offsetFromWindow(sender.draggingLocation)) else { return false }
+        log.debug("performDragOperation \(i)")
         let urls = (sender.draggingPasteboard.readObjects(forClasses: [NSURL.self],
                     options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
         guard !urls.isEmpty else { return false }
@@ -229,7 +239,9 @@ final class FanDropView: NSView {
     }
 
     // Click mode (files opened on the app icon): hover with the mouse, click a petal, click the hub to switch wheel.
-    override func mouseMoved(with event: NSEvent) { model.hover(at: offsetFromWindow(event.locationInWindow)) }
+    override func mouseMoved(with event: NSEvent) { model.hover(at: offsetFromWindow(event.locationInWindow), source: "mouse") }
+    /// Click mode runs in an inactive accessory app: the first click must reach us, not just activate.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) {
         let o = offsetFromWindow(event.locationInWindow)
         if let i = model.layout.hit(o) { onClickItem?(i) }
@@ -247,7 +259,7 @@ final class ShellFan {
     private var files: [URL] = []
     private var keyMonitors: [Any] = []
     private var exitWork: DispatchWorkItem?
-    private var clickMode = false
+    private(set) var clickMode = false
 
     var isVisible: Bool { panel?.isVisible ?? false }
     var currentWheel: ShellWheel? { isVisible ? model.wheel : nil }
@@ -261,6 +273,7 @@ final class ShellFan {
     func show(_ wheel: ShellWheel, files: [URL], at cursor: NSPoint, clickMode: Bool = false) {
         self.files = files
         self.clickMode = clickMode
+        log.debug("show \(wheel.title) how: \(clickMode ? "click" : "hold/tap")")
         model.wheel = wheel
         model.emptyMessage = wheel == .conversion ? "No formats for these files" : "No tools for these files"
         model.setItems(items(for: wheel, files: files))
@@ -287,6 +300,7 @@ final class ShellFan {
             p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
             p.isReleasedWhenClosed = false
             p.hidesOnDeactivate = false
+            p.acceptsMouseMovedEvents = true
             panel = p
         }
         p.setFrame(frame, display: false)
@@ -296,7 +310,10 @@ final class ShellFan {
         view.onClickHub = { [weak self] in self?.cycleWheel() }
         view.onDragEnd = { [weak self] in
             // Let a successful drop's own dismissal run first.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { self?.dismiss() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                guard let self, !self.keepAsClickMenu(at: NSEvent.mouseLocation) else { return }
+                self.dismiss()
+            }
         }
         view.onDragEnter = { [weak self] in self?.exitWork?.cancel() }
         view.onDragExit = { [weak self] in self?.scheduleDismiss() }
@@ -307,8 +324,30 @@ final class ShellFan {
         installKeyMonitors()
     }
 
+    /// Global drag events keep flowing during a drag even when the panel gets no dragging callbacks.
+    /// `screen` is in AppKit screen coordinates (y up); the wheel offset is y down from the hub.
+    func hover(atScreen screen: NSPoint) {
+        guard let p = panel, p.isVisible else { return }
+        model.hover(at: CGPoint(x: screen.x - p.frame.minX - model.centre.x,
+                                y: (p.frame.maxY - screen.y) - model.centre.y), source: "monitor")
+    }
+
+    /// The drag ended without a drop. A release inside the wheel keeps it open as a click menu.
+    /// Returns true when it did.
+    @discardableResult
+    func keepAsClickMenu(at screen: NSPoint) -> Bool {
+        guard let p = panel, p.isVisible, model.appeared, !clickMode else { return clickMode }
+        let d = hypot(screen.x - (p.frame.minX + model.centre.x), screen.y - (p.frame.maxY - model.centre.y))
+        guard d <= model.layout.radius + 8 else { return false }
+        log.debug("switch to click mode")
+        clickMode = true
+        exitWork?.cancel()
+        return true
+    }
+
     func dismiss() {
         exitWork?.cancel()
+        clickMode = false
         guard let p = panel, p.isVisible else { return }
         model.appeared = false
         for m in keyMonitors { NSEvent.removeMonitor(m) }

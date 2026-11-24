@@ -100,6 +100,11 @@ enum ShellModifierStore {
         masks(d)[wheel] ?? wheel.defaultMask
     }
 
+    /// The wheel whose combination is exactly `mask`, if any.
+    static func wheel(matching mask: ShellModifierMask, _ d: UserDefaults = .standard) -> ShellWheel? {
+        masks(d).first { $0.value == mask }?.key
+    }
+
     /// Which other wheel already uses `mask`, if any.
     static func conflict(for mask: ShellModifierMask, assigning wheel: ShellWheel, _ d: UserDefaults = .standard) -> ShellWheel? {
         masks(d).first { $0.key != wheel && $0.value == mask }?.key

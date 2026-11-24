@@ -28,7 +28,7 @@ swiftc "${OPT[@]}" -parse-as-library -swift-version 5 -target arm64-apple-macos1
   -module-name FileChanger -num-threads 8 \
   "${SOURCES[@]}" -o "$APP/Contents/MacOS/FileChanger"
 
-[ -f Resources/AppIcon.icns ] || swift scripts/make-icon.swift
+[ -f Resources/AppIcon.icns ] && [ -f Resources/MenuBarIcon.png ] || swift scripts/make-icon.swift
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 find Resources -mindepth 1 -maxdepth 1 ! -name Info.plist -exec cp -R {} "$APP/Contents/Resources/" \;
 
