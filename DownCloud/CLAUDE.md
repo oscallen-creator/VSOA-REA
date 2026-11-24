@@ -1,6 +1,6 @@
 # DownCloud: notes for Claude
 
-SoundCloud track/playlist link → MP3s with embedded cover + ID3 tags (title, artist, album, track n/total, year, genre). Electron window around a loopback-only Node server (`server.js`, stdlib only); ffmpeg comes from ffmpeg-static. Current release: **1.1.0**.
+SoundCloud track/playlist link → MP3s with embedded cover + ID3 tags (title, artist, album, track n/total, year, genre). Electron window around a loopback-only Node server (`server.js`, stdlib only); ffmpeg comes from ffmpeg-static. Current release: **1.1.1**.
 
 ## Where things live
 
@@ -28,6 +28,7 @@ SoundCloud track/playlist link → MP3s with embedded cover + ID3 tags (title, a
 - **`hero.webp`:** the first screen (trumpet player). It holds the link field, the Convert button, the "Downloadable Tracks" heading and the first 4 tracks, plus a "⤓ ZIP" button and a status line that weren't in the mockup.
 - **`tracks.webp`:** bird pages for tracks 5 and up, 11 rows per page. Rows 10–11 step right (`margin-left` 35/70 u) around the wing tip, and their row rules start later.
 - **How the art was made:** both files are Oscar's mockups with the placeholder rows erased. The fill is smooth paper colour from the surrounding paper plus grain quilted from clean paper patches. For new art, measure the element boxes, erase placeholders the same way, then update the coordinates.
+- **Seamless joins (since 1.1.1):** hero's bottom 110 rows and tracks' top and bottom 110 rows fade into one shared strip of real paper, so hero → bird → bird reads as one long page. tracks.webp also carries one white-balance gain so its paper matches hero's, and its red corner strokes taper out before the edges. Redo this if the art changes.
 - **Row icons:** `tile-small.png` and `tile-big.png` are the cloud icons cropped from the mockups, with alpha. Rows show these, not track covers; covers are still embedded in the MP3s.
 - **Window:** content height is 90% of the work area, with the aspect ratio locked to 906/1735 so the first screen fills it exactly.
 - **Zip entries:** named `Artist - Title.mp3` with **no number prefix**, which Oscar explicitly asked for. Repeated names get " (2)". Track order lives in the ID3 tags.
